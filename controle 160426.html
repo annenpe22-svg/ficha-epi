@@ -1,0 +1,1926 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle de Uniformes — Mina</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#f0f2f4; --surface:#fff; --border:#dde1e7;
+  --text:#1a2a2a; --muted:#5a6a7a; --dim:#9aaaaa;
+  --teal:#1e3a3a; --teal2:#2a4f4f; --teal3:#163030;
+  --red:#8B1A1A; --red2:#a82020;
+  --orange:#E55B20; --orange2:#d04f18;
+  --green:#1e7e34; --green2:#28a745;
+  --yellow:#856404; --yellow-bg:#fff3cd;
+  --blue:#0d6efd; --blue2:#0b5ed7;
+  --purple:#6f42c1;
+  --sidebar-w:230px;
+  --radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:var(--sidebar-w);background:var(--teal);
+  height:100vh;position:fixed;top:0;left:0;
+  display:flex;flex-direction:column;z-index:200;
+  box-shadow:3px 0 16px rgba(0,0,0,.18);
+}
+.sb-logo{
+  padding:20px 18px 16px;
+  border-bottom:1px solid rgba(255,255,255,.1);
+}
+.sb-logo-top{display:flex;align-items:center;gap:10px;}
+.sb-logo-icon{
+  width:36px;height:36px;background:var(--red);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;
+}
+.sb-logo-text .title{font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;font-weight:800;color:#fff;letter-spacing:.5px;}
+.sb-logo-text .sub{font-size:.68rem;color:rgba(255,255,255,.45);margin-top:1px;}
+.sb-nav{flex:1;padding:10px 10px;overflow-y:auto;}
+.sb-section{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.35);padding:10px 8px 4px;}
+.sb-item{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 10px;border-radius:7px;cursor:pointer;
+  font-size:.85rem;font-weight:500;color:rgba(255,255,255,.6);
+  transition:all .18s;border:none;background:none;width:100%;text-align:left;margin-bottom:1px;
+}
+.sb-item:hover{background:rgba(255,255,255,.08);color:#fff;}
+.sb-item.active{background:rgba(255,255,255,.15);color:#fff;font-weight:600;}
+.sb-item .ico{font-size:.95rem;width:18px;text-align:center;}
+.sb-badge{
+  margin-left:auto;background:var(--red);color:#fff;
+  border-radius:10px;padding:1px 7px;font-size:.65rem;font-weight:700;
+}
+.sb-badge.warn{background:var(--orange);}
+.sb-footer{padding:12px 18px;border-top:1px solid rgba(255,255,255,.1);font-size:.7rem;color:rgba(255,255,255,.3);}
+
+/* ── MAIN ── */
+.main{margin-left:var(--sidebar-w);flex:1;padding:1.5rem;min-height:100vh;}
+.page{display:none;animation:fadeIn .25s ease;}
+.page.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+.page-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem;
+}
+.page-title{font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:700;color:var(--teal);text-transform:uppercase;letter-spacing:.3px;}
+.page-sub{font-size:.82rem;color:var(--muted);margin-top:2px;}
+
+/* ── DASHBOARD ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:.9rem;margin-bottom:.9rem;}
+@media(max-width:900px){.stats-row{grid-template-columns:repeat(2,1fr);}}
+.stat-card{
+  background:var(--surface);border-radius:var(--radius);
+  border:1px solid var(--border);padding:14px 16px;
+  border-left:4px solid transparent;
+  transition:box-shadow .18s;
+}
+.stat-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08);}
+.stat-card.c-red{border-left-color:var(--red);}
+.stat-card.c-orange{border-left-color:var(--orange);}
+.stat-card.c-teal{border-left-color:var(--teal);}
+.stat-card.c-green{border-left-color:var(--green2);}
+.stat-card.c-blue{border-left-color:var(--blue);}
+.stat-card.c-purple{border-left-color:var(--purple);}
+.stat-label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:5px;}
+.stat-val{font-family:'Barlow Condensed',sans-serif;font-size:2rem;font-weight:700;line-height:1;color:var(--text);}
+.stat-val.red{color:var(--red);}
+.stat-val.orange{color:var(--orange);}
+.stat-val.green{color:var(--green2);}
+.stat-val.purple{color:var(--purple);}
+.stat-val.blue{color:var(--blue);}
+.stat-val.teal{color:var(--teal);}
+.stat-sub{font-size:.72rem;color:var(--muted);margin-top:3px;}
+
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:.9rem;}
+@media(max-width:800px){.dash-grid{grid-template-columns:1fr;}}
+.dash-card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:16px;}
+.dash-card-title{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:14px;}
+.chart-wrap{position:relative;height:200px;}
+.last-del-item{
+  display:flex;align-items:center;gap:10px;
+  padding:7px 0;border-bottom:1px solid var(--border);font-size:.83rem;
+}
+.last-del-item:last-child{border-bottom:none;}
+.last-del-name{flex:1;font-weight:600;}
+.last-del-sub{font-size:.72rem;color:var(--muted);margin-top:1px;}
+
+/* ── CARD ── */
+.card{background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);padding:1.25rem;margin-bottom:1rem;}
+.card-title{font-family:'Barlow Condensed',sans-serif;font-size:.95rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--teal);margin-bottom:1rem;}
+
+/* ── BUTTONS ── */
+.btn{
+  padding:7px 14px;border:none;border-radius:7px;
+  font-family:'Barlow',sans-serif;font-size:.83rem;font-weight:600;
+  cursor:pointer;transition:all .18s;display:inline-flex;align-items:center;gap:6px;
+}
+.btn-primary{background:var(--teal);color:#fff;}
+.btn-primary:hover{background:var(--teal2);}
+.btn-accent{background:var(--red);color:#fff;}
+.btn-accent:hover{background:var(--red2);}
+.btn-orange{background:var(--orange);color:#fff;}
+.btn-orange:hover{background:var(--orange2);}
+.btn-success{background:var(--green2);color:#fff;}
+.btn-success:hover{background:var(--green);}
+.btn-ghost{background:transparent;border:1.5px solid var(--border);color:var(--text);}
+.btn-ghost:hover{background:var(--bg);}
+.btn-sm{padding:5px 10px;font-size:.76rem;}
+.btn:disabled{opacity:.4;cursor:not-allowed;}
+.btn-group{display:flex;gap:8px;flex-wrap:wrap;}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:.83rem;}
+th{padding:7px 10px;text-align:left;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:2px solid var(--border);white-space:nowrap;}
+td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:rgba(0,0,0,.02);}
+.td-bold{font-weight:600;}
+.td-muted{font-size:.74rem;color:var(--muted);margin-top:2px;}
+
+/* ── BADGE ── */
+.badge{padding:3px 9px;border-radius:20px;font-size:.67rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap;}
+.badge-pendente{background:#fff3cd;color:#856404;}
+.badge-aprovado{background:#cfe2ff;color:#084298;}
+.badge-entregue{background:#d1e7dd;color:#0f5132;}
+.badge-lista_espera{background:#f8d7da;color:#842029;}
+.badge-ativo{background:#d1e7dd;color:#0f5132;}
+.badge-desligado{background:#f8d7da;color:#842029;}
+.badge-atestado{background:#fff3cd;color:#856404;}
+.badge-critico{background:#f8d7da;color:#842029;}
+.badge-ok{background:#d1e7dd;color:#0f5132;}
+.badge-alerta{background:#fff3cd;color:#856404;}
+
+/* ── FILTER TABS ── */
+.filter-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:1rem;}
+.ftab{
+  padding:5px 13px;border-radius:20px;border:1.5px solid var(--border);
+  background:transparent;color:var(--muted);font-family:'Barlow',sans-serif;
+  font-size:.78rem;font-weight:500;cursor:pointer;transition:all .18s;
+}
+.ftab:hover{background:var(--bg);}
+.ftab.active{background:var(--teal);color:#fff;border-color:var(--teal);}
+
+/* ── TOOLBAR ── */
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:1rem;flex-wrap:wrap;}
+.toolbar-right{margin-left:auto;display:flex;gap:8px;}
+.search-box{
+  padding:7px 12px;background:var(--surface);border:1.5px solid var(--border);
+  border-radius:7px;color:var(--text);font-family:'Barlow',sans-serif;
+  font-size:.83rem;width:210px;outline:none;
+}
+.search-box:focus{border-color:var(--teal);}
+
+/* ── FORM ── */
+.form-group{margin-bottom:.9rem;}
+.form-label{display:block;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:.35rem;}
+.form-control{
+  width:100%;padding:8px 11px;background:var(--surface);
+  border:1.5px solid var(--border);border-radius:7px;
+  font-family:'Barlow',sans-serif;font-size:.88rem;color:var(--text);
+  outline:none;transition:border-color .18s;appearance:none;
+}
+.form-control:focus{border-color:var(--teal);}
+select.form-control{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%235a6a7a' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;
+}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;}
+.form-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.9rem;}
+@media(max-width:600px){.form-row,.form-row3{grid-template-columns:1fr;}}
+
+/* ── MODAL ── */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);
+  z-index:500;display:none;align-items:center;justify-content:center;padding:1rem;
+}
+.overlay.show{display:flex;}
+.modal{
+  background:var(--surface);border-radius:var(--radius);border:1px solid var(--border);
+  max-width:640px;width:100%;max-height:90vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.2);animation:slideUp .25s ease;
+}
+.modal-lg{max-width:820px;}
+@keyframes slideUp{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-header{
+  padding:14px 18px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--teal);border-radius:var(--radius) var(--radius) 0 0;
+}
+.modal-title{font-family:'Barlow Condensed',sans-serif;font-size:1.05rem;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.5px;}
+.modal-close{background:none;border:none;color:rgba(255,255,255,.6);font-size:1.2rem;cursor:pointer;padding:2px;line-height:1;}
+.modal-close:hover{color:#fff;}
+.modal-body{padding:18px;}
+.modal-footer{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;background:#f8f9fa;border-radius:0 0 var(--radius) var(--radius);}
+
+/* ── ALERT ── */
+.alert{padding:10px 12px;border-radius:7px;font-size:.83rem;margin-bottom:1rem;display:flex;align-items:flex-start;gap:8px;}
+.alert-ico{flex-shrink:0;margin-top:1px;}
+.alert-info{background:#cfe2ff;border:1px solid #9ec5fe;color:#084298;}
+.alert-warning{background:#fff3cd;border:1px solid #ffecb5;color:#664d03;}
+.alert-success{background:#d1e7dd;border:1px solid #a3cfbb;color:#0a3622;}
+.alert-danger{background:#f8d7da;border:1px solid #f1aeb5;color:#58151c;}
+
+/* ── DROP AREA ── */
+.drop-area{
+  border:2px dashed var(--border);border-radius:var(--radius);
+  padding:1.75rem;text-align:center;cursor:pointer;transition:all .2s;
+}
+.drop-area:hover,.drop-area.drag{border-color:var(--teal);background:rgba(30,58,58,.03);}
+.drop-icon{font-size:2.2rem;margin-bottom:.6rem;}
+.drop-title{font-size:.93rem;font-weight:600;color:var(--text);margin-bottom:.25rem;}
+.drop-sub{font-size:.78rem;color:var(--muted);}
+input[type=file]{display:none;}
+
+/* ── INFO BOX ── */
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:1rem;}
+.info-box{background:var(--bg);border-radius:7px;padding:10px 12px;}
+.info-box-label{font-size:.63rem;text-transform:uppercase;font-weight:700;letter-spacing:.5px;color:var(--muted);margin-bottom:3px;}
+.info-box-val{font-size:.88rem;font-weight:600;}
+
+/* ── RELATORIOS CARDS ── */
+.rel-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+@media(max-width:700px){.rel-grid{grid-template-columns:1fr;}}
+.rel-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.25rem;cursor:pointer;transition:all .2s;
+  display:flex;align-items:flex-start;gap:14px;
+}
+.rel-card:hover{border-color:var(--teal);box-shadow:0 4px 16px rgba(0,0,0,.07);transform:translateY(-2px);}
+.rel-card-ico{font-size:1.75rem;flex-shrink:0;margin-top:2px;}
+.rel-card-title{font-weight:700;font-size:.93rem;color:var(--teal);margin-bottom:3px;}
+.rel-card-sub{font-size:.78rem;color:var(--muted);line-height:1.4;}
+
+/* ── LOADING / EMPTY ── */
+.loading{text-align:center;padding:2rem;color:var(--muted);}
+.spinner{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto .75rem;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:2.5rem;color:var(--muted);}
+.empty-ico{font-size:2.5rem;margin-bottom:.6rem;}
+
+/* ── TOAST ── */
+.toast{
+  position:fixed;bottom:1.5rem;right:1.5rem;
+  padding:10px 16px;border-radius:8px;font-size:.83rem;font-weight:500;z-index:9999;
+  transform:translateY(80px);opacity:0;transition:all .3s;
+  background:var(--teal);color:#fff;box-shadow:0 8px 24px rgba(0,0,0,.2);
+}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.success{background:var(--green2);}
+.toast.error{background:var(--red);}
+.toast.warning{background:var(--orange);}
+
+/* ── SOURCE OPTIONS ── */
+.src-opts{display:flex;gap:10px;margin-bottom:.9rem;}
+.src-opt{
+  flex:1;padding:12px;border:2px solid var(--border);border-radius:8px;
+  cursor:pointer;transition:all .18s;text-align:center;background:var(--bg);
+}
+.src-opt.sel{border-color:var(--teal);background:rgba(30,58,58,.05);}
+.src-opt.disabled{opacity:.4;cursor:not-allowed;}
+.src-opt .s-ico{font-size:1.4rem;margin-bottom:.3rem;}
+.src-opt .s-lbl{font-size:.78rem;font-weight:600;}
+.src-opt .s-qty{font-size:.68rem;color:var(--muted);margin-top:2px;}
+
+.divider{height:1px;background:var(--border);margin:1rem 0;}
+</style>
+</head>
+<body>
+
+<!-- ══════════ SIDEBAR ══════════ -->
+<nav class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-top">
+      <div class="sb-logo-icon">⛏</div>
+      <div class="sb-logo-text">
+        <div class="title">UNI MINA</div>
+        <div class="sub">Controle de Uniformes</div>
+      </div>
+    </div>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-section">Painel</div>
+    <button class="sb-item active" onclick="nav('dashboard',this)"><span class="ico">📊</span>Dashboard</button>
+    <button class="sb-item" onclick="nav('pedidos',this)">
+      <span class="ico">📋</span>Pedidos
+      <span class="sb-badge" id="badge-pend" style="display:none">0</span>
+    </button>
+    <button class="sb-item" onclick="nav('espera',this)">
+      <span class="ico">⏳</span>Lista de Espera
+      <span class="sb-badge warn" id="badge-esp" style="display:none">0</span>
+    </button>
+    <div class="sb-section">Cadastros</div>
+    <button class="sb-item" onclick="nav('funcionarios',this)"><span class="ico">👷</span>Funcionários</button>
+    <button class="sb-item" onclick="nav('estoque',this)"><span class="ico">📦</span>Estoque</button>
+    <div class="sb-section">Análise</div>
+    <button class="sb-item" onclick="nav('relatorios',this)"><span class="ico">📈</span>Relatórios</button>
+  </div>
+  <div class="sb-footer">Firebase · v2.0</div>
+</nav>
+
+<!-- ══════════ MAIN ══════════ -->
+<main class="main">
+
+<!-- ──────────── DASHBOARD ──────────── -->
+<div id="pg-dashboard" class="page active">
+  <div class="page-header">
+    <div><div class="page-title">Dashboard</div><div class="page-sub" id="dash-date">—</div></div>
+    <button class="btn btn-ghost btn-sm" onclick="carregarTudo()">↺ Atualizar</button>
+  </div>
+
+  <!-- Linha 1 -->
+  <div class="stats-row">
+    <div class="stat-card c-teal">
+      <div class="stat-label">Funcionários</div>
+      <div class="stat-val teal" id="ds-func">—</div>
+      <div class="stat-sub">cadastrados</div>
+    </div>
+    <div class="stat-card c-orange">
+      <div class="stat-label">Pedidos Pendentes</div>
+      <div class="stat-val orange" id="ds-pend">—</div>
+      <div class="stat-sub">aguardando aprovação</div>
+    </div>
+    <div class="stat-card c-red">
+      <div class="stat-label">Estoque Baixo</div>
+      <div class="stat-val red" id="ds-est-baixo">—</div>
+      <div class="stat-sub">itens críticos</div>
+    </div>
+    <div class="stat-card c-green">
+      <div class="stat-label">Custo Entregas</div>
+      <div class="stat-val green" id="ds-custo-ent">R$ 0,00</div>
+      <div class="stat-sub">total acumulado</div>
+    </div>
+  </div>
+
+  <!-- Linha 2 -->
+  <div class="stats-row">
+    <div class="stat-card c-purple">
+      <div class="stat-label">Requisições ao Depósito</div>
+      <div class="stat-val purple" id="ds-req">0</div>
+      <div class="stat-sub" id="ds-req-sub">0 pendente(s)</div>
+    </div>
+    <div class="stat-card c-blue">
+      <div class="stat-label">Custo das Requisições</div>
+      <div class="stat-val blue" id="ds-custo-req">R$ 0,00</div>
+      <div class="stat-sub">valor solicitado ao depósito</div>
+    </div>
+    <div class="stat-card c-red">
+      <div class="stat-label">Custo Total Geral</div>
+      <div class="stat-val red" id="ds-custo-total">R$ 0,00</div>
+      <div class="stat-sub">entregas + requisições</div>
+    </div>
+    <div class="stat-card c-teal">
+      <div class="stat-label">Maior Centro de Custo</div>
+      <div class="stat-val teal" style="font-size:1.15rem" id="ds-top-cc">—</div>
+      <div class="stat-sub" id="ds-top-cc-sub">sem dados</div>
+    </div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="dash-grid">
+    <div class="dash-card">
+      <div class="dash-card-title">Custo por Turma</div>
+      <div class="chart-wrap"><canvas id="chart-turma"></canvas></div>
+      <div id="no-turma" class="empty" style="display:none;padding:1rem"><div class="empty-ico">📊</div><div style="font-size:.8rem">Nenhuma entrega registrada ainda</div></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Custo por Centro de Custo</div>
+      <div class="chart-wrap"><canvas id="chart-cc"></canvas></div>
+      <div id="no-cc" class="empty" style="display:none;padding:1rem"><div class="empty-ico">📊</div><div style="font-size:.8rem">Nenhum Centro de Custo cadastrado ainda</div></div>
+    </div>
+  </div>
+  <div class="dash-grid">
+    <div class="dash-card">
+      <div class="dash-card-title">Status dos Pedidos</div>
+      <div class="chart-wrap"><canvas id="chart-status"></canvas></div>
+    </div>
+    <div class="dash-card">
+      <div class="dash-card-title">Últimas Entregas</div>
+      <div id="dash-last-del"><div class="empty" style="padding:.5rem"><div style="font-size:.8rem">Nenhuma entrega registrada.</div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ──────────── PEDIDOS ──────────── -->
+<div id="pg-pedidos" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Pedidos</div><div class="page-sub">Gerencie todas as solicitações</div></div>
+    <div class="btn-group">
+      <button class="btn btn-orange" onclick="abrirImportForm1()">📥 Importar do Form1</button>
+      <button class="btn btn-ghost btn-sm" onclick="carregarPedidos()">↺</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="toolbar">
+      <div class="filter-tabs">
+        <button class="ftab active" onclick="filtrarPed('todos',this)">Todos</button>
+        <button class="ftab" onclick="filtrarPed('pendente',this)">Pendentes</button>
+        <button class="ftab" onclick="filtrarPed('aprovado',this)">Aprovados</button>
+        <button class="ftab" onclick="filtrarPed('entregue',this)">Entregues</button>
+        <button class="ftab" onclick="filtrarPed('lista_espera',this)">Espera</button>
+      </div>
+      <div class="toolbar-right">
+        <input class="search-box" type="text" id="search-ped" placeholder="🔍 Buscar..." oninput="renderPedidos()">
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Funcionário</th><th>Turma</th><th>C. Custo</th>
+          <th>Item(ns)</th><th>Solicitado em</th><th>Status</th><th>Ações</th>
+        </tr></thead>
+        <tbody id="tb-ped"></tbody>
+      </table>
+    </div>
+    <div id="ped-empty" class="empty" style="display:none"><div class="empty-ico">📭</div><div>Nenhum pedido encontrado</div></div>
+  </div>
+</div>
+
+<!-- ──────────── LISTA DE ESPERA ──────────── -->
+<div id="pg-espera" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Lista de Espera</div><div class="page-sub">Pedidos aguardando reposição de estoque</div></div>
+  </div>
+  <div class="alert alert-info"><span class="alert-ico">ℹ️</span><div>Ao adicionar estoque, os pedidos abaixo serão processados automaticamente em ordem de chegada (FIFO).</div></div>
+  <div class="card">
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Funcionário</th><th>Turma</th><th>C. Custo</th><th>Item</th><th>Aguardando há</th><th>Ação</th></tr></thead>
+        <tbody id="tb-esp"></tbody>
+      </table>
+    </div>
+    <div id="esp-empty" class="empty" style="display:none"><div class="empty-ico">🎉</div><div>Lista de espera vazia!</div></div>
+  </div>
+</div>
+
+<!-- ──────────── FUNCIONÁRIOS ──────────── -->
+<div id="pg-funcionarios" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Funcionários</div><div class="page-sub">Cadastro com dados da planilha de turmas</div></div>
+    <div class="btn-group">
+      <button class="btn btn-orange" onclick="abrirImportFunc()">📊 Importar Planilha</button>
+      <button class="btn btn-primary" onclick="abrirModalFunc(null)">+ Novo Funcionário</button>
+    </div>
+  </div>
+  <!-- Import area -->
+  <div class="card" id="import-func-area" style="display:none">
+    <div class="card-title">Importar via Planilha</div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Colunas: <strong>Gerência | Matricula | Nome Colaborador | Turma | Centro de custo | função | Responsável</strong></div>
+    <div class="drop-area" id="drop-func" onclick="document.getElementById('fi-func').click()">
+      <div class="drop-icon">👷</div>
+      <div class="drop-title">Arraste ou clique para importar</div>
+      <div class="drop-sub">.xlsx ou .csv</div>
+    </div>
+    <input type="file" id="fi-func" accept=".xlsx,.csv">
+    <div id="preview-func-area"></div>
+    <div style="margin-top:.75rem"><button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-func-area').style.display='none'">Fechar</button></div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <div class="filter-tabs">
+        <button class="ftab active" onclick="filtrarFunc('todos',this)">Todos <span id="cnt-todos"></span></button>
+        <button class="ftab" onclick="filtrarFunc('ativo',this)">Ativos</button>
+        <button class="ftab" onclick="filtrarFunc('desligado',this)">Desligados</button>
+        <button class="ftab" onclick="filtrarFunc('atestado',this)">Atestado</button>
+      </div>
+      <div class="toolbar-right">
+        <input class="search-box" type="text" id="search-func" placeholder="🔍 Nome ou matrícula..." oninput="renderFuncionarios()">
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Nome</th><th>Matrícula</th><th>Turma</th><th>C. Custo</th><th>Função</th><th>Responsável</th><th>Situação</th><th>Ações</th></tr></thead>
+        <tbody id="tb-func"></tbody>
+      </table>
+    </div>
+    <div id="func-empty" class="empty" style="display:none"><div class="empty-ico">👤</div><div>Nenhum funcionário encontrado</div></div>
+  </div>
+</div>
+
+<!-- ──────────── ESTOQUE ──────────── -->
+<div id="pg-estoque" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Estoque</div><div class="page-sub">Controle de uniformes e EPIs — Mina</div></div>
+    <div class="btn-group">
+      <button class="btn btn-orange" onclick="abrirImportEst()">📊 Importar Estoque</button>
+      <button class="btn btn-primary" onclick="abrirModalItem(null)">+ Novo Item</button>
+    </div>
+  </div>
+
+  <div class="card" id="import-est-area" style="display:none">
+    <div class="card-title">Importar Planilha de Estoque</div>
+    <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">
+      Colunas: <strong>Código | Descrição | Categoria | Tamanho | Qtd Estoque | Qtd Mínima | Valor Unit. | Nº CA | Localização</strong>
+    </div>
+    <div class="drop-area" id="drop-est" onclick="document.getElementById('fi-est').click()">
+      <div class="drop-icon">📦</div>
+      <div class="drop-title">Arraste ou clique para importar planilha de estoque</div>
+      <div class="drop-sub">.xlsx ou .csv</div>
+    </div>
+    <input type="file" id="fi-est" accept=".xlsx,.csv">
+    <div id="preview-est-area"></div>
+    <div style="margin-top:.75rem"><button class="btn btn-ghost btn-sm" onclick="document.getElementById('import-est-area').style.display='none'">Fechar</button></div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <div class="filter-tabs">
+        <button class="ftab active" onclick="filtrarEst('todos',this)">Todos</button>
+        <button class="ftab" onclick="filtrarEst('critico',this)">Críticos</button>
+        <button class="ftab" onclick="filtrarEst('ok',this)">OK</button>
+      </div>
+      <div class="toolbar-right">
+        <input class="search-box" type="text" id="search-est" placeholder="🔍 Descrição..." oninput="renderEstoque()">
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Código</th><th>Descrição</th><th>Categoria</th><th>Tamanho</th><th>Qtd Estoque</th><th>Qtd Mínima</th><th>Qtd Armazém</th><th>Valor Unit.</th><th>Nº CA</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="tb-est"></tbody>
+      </table>
+    </div>
+    <div id="est-empty" class="empty" style="display:none"><div class="empty-ico">📦</div><div>Nenhum item cadastrado</div></div>
+  </div>
+</div>
+
+<!-- ──────────── RELATÓRIOS ──────────── -->
+<div id="pg-relatorios" class="page">
+  <div class="page-header">
+    <div><div class="page-title">Relatórios</div><div class="page-sub">Documentos e análises gerenciais</div></div>
+  </div>
+
+  <div class="rel-grid" style="margin-bottom:1.5rem">
+    <div class="rel-card" onclick="abrirRelFicha()">
+      <div class="rel-card-ico">📄</div>
+      <div>
+        <div class="rel-card-title">Ficha de Entrega de Uniforme</div>
+        <div class="rel-card-sub">NR-01, NR-06 e CLT — Individual por colaborador</div>
+      </div>
+    </div>
+    <div class="rel-card" onclick="abrirRelTurma()">
+      <div class="rel-card-ico">📊</div>
+      <div>
+        <div class="rel-card-title">Custo por Turma</div>
+        <div class="rel-card-sub">Total de gastos agrupados por turma e centro de custo</div>
+      </div>
+    </div>
+    <div class="rel-card" onclick="abrirRelEstoque()">
+      <div class="rel-card-ico">📦</div>
+      <div>
+        <div class="rel-card-title">Posição de Estoque</div>
+        <div class="rel-card-sub">Inventário completo com itens críticos destacados</div>
+      </div>
+    </div>
+    <div class="rel-card" onclick="abrirRelRequisicoes()">
+      <div class="rel-card-ico">📥</div>
+      <div>
+        <div class="rel-card-title">Requisições ao Depósito</div>
+        <div class="rel-card-sub">Histórico e reimpressão das requisições geradas</div>
+      </div>
+    </div>
+    <div class="rel-card" onclick="abrirRelCC()">
+      <div class="rel-card-ico">💰</div>
+      <div>
+        <div class="rel-card-title">Custo por Centro de Custo</div>
+        <div class="rel-card-sub">Gastos diários e totais — imprimível por C.C.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtro período -->
+  <div class="card">
+    <div class="card-title">Filtro de Período</div>
+    <div class="form-row" style="max-width:420px;margin-bottom:.9rem">
+      <div class="form-group">
+        <label class="form-label">Mês</label>
+        <select class="form-control" id="rel-mes">
+          <option value="01">Janeiro</option><option value="02">Fevereiro</option>
+          <option value="03">Março</option><option value="04">Abril</option>
+          <option value="05">Maio</option><option value="06">Junho</option>
+          <option value="07">Julho</option><option value="08">Agosto</option>
+          <option value="09">Setembro</option><option value="10">Outubro</option>
+          <option value="11">Novembro</option><option value="12">Dezembro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ano</label>
+        <select class="form-control" id="rel-ano"></select>
+      </div>
+    </div>
+    <div id="rel-content"><div class="empty"><div class="empty-ico">📈</div><div>Clique em um relatório acima para gerar</div></div></div>
+  </div>
+</div>
+
+</main><!-- /main -->
+
+<!-- ══════════ MODAL: PROCESSAR PEDIDO ══════════ -->
+<div class="overlay" id="modal-processar">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Processar Pedido</span><button class="modal-close" onclick="fecharModal('modal-processar')">✕</button></div>
+    <div class="modal-body" id="modal-proc-body"></div>
+    <div class="modal-footer" id="modal-proc-footer"></div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL: FUNCIONÁRIO ══════════ -->
+<div class="overlay" id="modal-func">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="modal-func-title">Novo Funcionário</span><button class="modal-close" onclick="fecharModal('modal-func')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ef-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Matrícula *</label>
+          <input type="text" class="form-control" id="ef-mat" placeholder="Ex: 201716">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nome Completo *</label>
+          <input type="text" class="form-control" id="ef-nome" placeholder="Nome do colaborador" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Gerência</label>
+          <input type="text" class="form-control" id="ef-gerencia" placeholder="Ex: Gerência de Operação Mina">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Turma *</label>
+          <select class="form-control" id="ef-turma">
+            <option value="">Selecione...</option>
+            <option>Geomecânica_Rodrigo</option>
+            <option>Infraestrutura</option>
+            <option>Turma A- Clemilson Santos</option>
+            <option>Turma B - José Oliveira</option>
+            <option>Turma C - Fábio Santos</option>
+            <option>Turma D - Eduardo Santos</option>
+            <option>Turma E - Allan Santos</option>
+            <option value="outro">Outra turma...</option>
+          </select>
+          <input type="text" class="form-control" id="ef-turma-outro" placeholder="Digite a turma" style="margin-top:6px;display:none">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Centro de Custo *</label>
+          <input type="text" class="form-control" id="ef-cc" placeholder="Ex: 101214">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Função</label>
+          <input type="text" class="form-control" id="ef-funcao" placeholder="Ex: OP MINA SUBSOLO I" style="text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Responsável / Líder</label>
+          <input type="text" class="form-control" id="ef-resp" placeholder="Ex: Clemilson Santos">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Situação *</label>
+          <select class="form-control" id="ef-sit" onchange="toggleDataSit()">
+            <option value="ativo">Ativo</option>
+            <option value="desligado">Desligado</option>
+            <option value="atestado">Atestado</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" id="ef-data-wrap" style="display:none">
+        <label class="form-label">Data da Situação</label>
+        <input type="date" class="form-control" id="ef-data-sit">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-func')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarFuncionario()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL: ITEM ESTOQUE ══════════ -->
+<div class="overlay" id="modal-item">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="modal-item-title">Novo Item de Estoque</span><button class="modal-close" onclick="fecharModal('modal-item')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="ei-id">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Código</label>
+          <input type="text" class="form-control" id="ei-cod" placeholder="Ex: UNI-001">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição *</label>
+          <input type="text" class="form-control" id="ei-desc" placeholder="Ex: Macacão Operacional">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <select class="form-control" id="ei-cat">
+            <option>Uniforme</option><option>EPI</option><option>Calçado</option>
+            <option>Acessório</option><option>Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tamanho</label>
+          <input type="text" class="form-control" id="ei-tam" placeholder="Ex: M, G, GG, 42...">
+        </div>
+      </div>
+      <div class="form-row3">
+        <div class="form-group">
+          <label class="form-label">Qtd Estoque</label>
+          <input type="number" class="form-control" id="ei-qtd" value="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Qtd Armazém</label>
+          <input type="number" class="form-control" id="ei-arm" value="0" min="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Qtd Mínima</label>
+          <input type="number" class="form-control" id="ei-min" value="5" min="0">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Valor Unitário (R$)</label>
+          <input type="number" class="form-control" id="ei-val" value="0" min="0" step="0.01">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nº CA (Cert. Aprovação)</label>
+          <input type="text" class="form-control" id="ei-ca" placeholder="Ex: 12345">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Localização</label>
+        <input type="text" class="form-control" id="ei-loc" placeholder="Ex: Prateleira A-3, Almoxarifado">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-item')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarItem()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL: IMPORTAR FORM1 ══════════ -->
+<div class="overlay" id="modal-form1">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title">📥 Importar Pedido do Form1</span><button class="modal-close" onclick="fecharModal('modal-form1')">✕</button></div>
+    <div class="modal-body">
+      <div class="alert alert-info"><span class="alert-ico">ℹ️</span><div>Cole abaixo o JSON gerado pelo Form1 (exportado pelo supervisor) ou importe o arquivo .json.</div></div>
+      <div class="form-group">
+        <label class="form-label">Cole o JSON do pedido</label>
+        <textarea class="form-control" id="form1-json" rows="8" placeholder='{"matricula":"201716","nome":"NOME","turma":"Turma A","cc":"42101113","itens":[...]}' style="font-family:monospace;font-size:.78rem"></textarea>
+      </div>
+      <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem">
+        <span style="font-size:.78rem;color:var(--muted)">ou</span>
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('fi-form1').click()">📁 Importar .json</button>
+        <input type="file" id="fi-form1" accept=".json">
+      </div>
+      <div id="form1-preview"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-form1')">Cancelar</button>
+      <button class="btn btn-primary" onclick="parseForm1Preview()">👁 Pré-visualizar</button>
+      <button class="btn btn-orange" id="btn-confirm-form1" onclick="confirmarImportForm1()" style="display:none">✅ Confirmar Importação</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════ MODAL: RELATÓRIO ══════════ -->
+<div class="overlay" id="modal-rel">
+  <div class="modal modal-lg">
+    <div class="modal-header"><span class="modal-title" id="modal-rel-title">Relatório</span><button class="modal-close" onclick="fecharModal('modal-rel')">✕</button></div>
+    <div class="modal-body" id="modal-rel-body"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="fecharModal('modal-rel')">Fechar</button>
+      <button class="btn btn-primary" onclick="imprimirRelModal()">🖨 Imprimir</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ╔══════════════════════════════════════════════════════╗
+// ║  CONFIGURAÇÃO FIREBASE — substitua com seus dados   ║
+// ╚══════════════════════════════════════════════════════╝
+const firebaseConfig = {
+  apiKey:            "SUA_API_KEY",
+  authDomain:        "SEU_PROJETO.firebaseapp.com",
+  projectId:         "SEU_PROJETO_ID",
+  storageBucket:     "SEU_PROJETO.appspot.com",
+  messagingSenderId: "SEU_SENDER_ID",
+  appId:             "SEU_APP_ID"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ── BASE DE FUNCIONÁRIOS (planilha importada) ─────────
+const FUNC_DB_INICIAL = [{"gerencia":"Gerência de Operação Mina","matricula":"201716","nome":"DIOGENES ANTONIO RAMOS ALMEIDA JUNIOR","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"LIDER TEC GEOMECANICA","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"3209663","nome":"FRANKLIN SANTOS DA SILVA","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"INSPETOR VENTILACAO MINA SUB II","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"480024","nome":"FRED LUCIO MENEZES DO NASCIMENTO","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"INSPETOR VENTILACAO MINA SUB II","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"806247","nome":"GIDEON SIMOES DE OLIVEIRA","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"LIDER TEC GEOMECANICA","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"86835","nome":"JOAO EMIDIO GABRIEL ARAUJO","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"LIDER TEC GEOMECANICA","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805721","nome":"MARCELO AUGUSTO NUNES DA SILVA","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"LIDER TEC GEOMECANICA","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202902","nome":"RAFAEL DOS SANTOS SILVA","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"INSPETOR VENTILACAO MINA SUB II","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"808518","nome":"WAGNER DE SOUZA DIAS","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"INSPETOR VENTILACAO MINA SUB II","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"205941","nome":"WASHINGTON SANTOS MELO","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"INSPETOR VENTILACAO MINA SUB II","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"212944","nome":"MARCIO EUCLIDES PACHECO FREITAS","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"Engenheiro de Minas Pl","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"567701","nome":"JEANCARLO DOS SANTOS FERRAZ SILVA","turma":"Geomecânica_Rodrigo","centroCusto":"101214","funcao":"LIDER TEC PLANEJ GEOMECANICA","responsavel":"RODRIGO ARAUJO DA SILVA","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"546655","nome":"CLAUDIO LACERDA DO NASCIMENTO","turma":"Infraestrutura","centroCusto":"101214","funcao":"TEC PLANEJ INFRAESTRUTURA","responsavel":"JEFFERSON AVELINO SANTOS","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"781233","nome":"HENRIQUE PEDRO JUNIOR","turma":"Infraestrutura","centroCusto":"101214","funcao":"INSPETOR INFRAESTRUTURA","responsavel":"JEFFERSON AVELINO SANTOS","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"208618","nome":"ISAC MATOS DE OLIVEIRA","turma":"Infraestrutura","centroCusto":"101214","funcao":"INSPETOR INFRAESTRUTURA","responsavel":"JEFFERSON AVELINO SANTOS","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204067","nome":"JOSE ANTONIO DE SOUZA SOBRINHO","turma":"Infraestrutura","centroCusto":"101214","funcao":"INSPETOR INFRAESTRUTURA","responsavel":"JEFFERSON AVELINO SANTOS","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"469395","nome":"NEVITON DA CONCEICAO SOUZA","turma":"Infraestrutura","centroCusto":"101214","funcao":"INSPETOR INFRAESTRUTURA","responsavel":"JEFFERSON AVELINO SANTOS","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204000","nome":"WANDERSON MENESES DOS SANTOS","turma":"Infraestrutura","centroCusto":"101214","funcao":"INSPETOR INFRAESTRUTURA","responsavel":"JEFFERSON AVELINO SANTOS","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204301","nome":"ADISON CICERO NOGUEIRA DA SILVA","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"496310","nome":"ANDERSON RODRIGO DOS SANTOS LEITE","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"481020","nome":"DAVID NUNES DE JESUS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"480627","nome":"DENISSON DOS SANTOS ALVES","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"207173","nome":"DIEGO CRAVO VASCONCELOS MOREIRA","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"495482","nome":"DIEGO MARTINS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"201719","nome":"EDIVANILTON DOS SANTOS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"502460","nome":"EMERSON CORREIA FIGUEIREDO","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804048","nome":"EMERSON MELO SANTOS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"203277","nome":"FABRICIO JANSEN TEIXEIRA BARRETO","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"505692","nome":"FRANCISCO CHARLES DE MELO","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"807542","nome":"IGOR MENDONCA DA CONCEICAO","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202592","nome":"JENILTON DOS SANTOS SANTANA","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"201890","nome":"JONAS JADIEL BATISTA DE MORAIS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"502471","nome":"JOSE AMILTON DIAS DOS SANTOS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"480328","nome":"JOSE AROALDO DO NASCIMENTO SANTOS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"481001","nome":"JOSE ERIVALDO DOS SANTOS FILHO","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"517436","nome":"LUCIANO SANTOS OLIVEIRA","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"493930","nome":"LUIS RICARDO PEREIRA SANTOS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"501842","nome":"MARCOS ROBERTO SANTOS SOUZA","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"486494","nome":"REINALDO ELIAS DA SILVA","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"3207154","nome":"VALDENILSON SANTOS PEREIRA","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804042","nome":"VICTOR HUGO DOS SANTOS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"207186","nome":"WILTON COSTA SANTOS","turma":"Turma A- Clemilson Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Clemilson Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"205249","nome":"ALAN RICARDO ARAGAO PEREIRA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"475398","nome":"ALEXANDRE OLIVEIRA SILVEIRA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"597427","nome":"ANTONIO ANDRADE DOS SANTOS","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202923","nome":"CLAUDIO WELLINGTON BISPO DOS SANTOS","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"367045","nome":"CLEMERSON SANTOS GOMES","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"806022","nome":"DANIEL AUGUSTO SANTOS","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202244","nome":"DANILO MARQUES SANTOS DE JESUS","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805394","nome":"DAVI LUIZ SILVA LELIS DO CARMO","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"209540","nome":"EVERTON SANTOS SILVA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805416","nome":"FELIPE ONORIO RIBEIRO","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804161","nome":"FRANKLY LUIZ SANTOS DA SILVA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"548289","nome":"GOLBERY CRUZ OLIVEIRA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"808268","nome":"HAMILTON FERREIRA DOS SANTOS JUNIOR","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"524946","nome":"JADSON SILVA SANTOS","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"481468","nome":"JEVERSON BAPTISTA DOS SANTOS","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"56390","nome":"MARCEL COSTA ALVES","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"48090","nome":"MARCIO ADRIANO SOUZA PINHO","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804530","nome":"MARIO SERGIO SILVA CARVALHO","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"205108","nome":"MILTON LIMA CAVALCANTE","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"496086","nome":"RAFAEL LIMA DE SOUZA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804265","nome":"REGINALDO GOMES CRUZ FILHO","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805378","nome":"RICARDO DE OLIVEIRA SOUZA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"3210702","nome":"ROBERTO NASCIMENTO DE OLIVEIRA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202413","nome":"THOMAZ HENRIQUE SANTOS DA CONCEICAO","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"203283","nome":"VITOR BARBOSA VIANA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"492808","nome":"WAGNER BARBOSA PEREIRA","turma":"Turma B - José Oliveira","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"José Oliveira","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"483125","nome":"AILTON VIEIRA DOS SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202599","nome":"AUDREY CRUZ RODRIGUES DA SILVA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"480161","nome":"BRUNO CESAR SANTOS SILVA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804044","nome":"CLOUDOALDO GALDINO CARVALHO","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804047","nome":"DAVSSON ALVES DE OLIVEIRA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"47951","nome":"FERNANDO DE OLIVEIRA TELES","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"47936","nome":"GUSTAVO LOPES DE SOUSA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"209718","nome":"IDSON FEITOSA DE SANTANA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202085","nome":"IGOR APARECIDO FARIAS SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"499860","nome":"IVAN BOMFIM VIEIRA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202855","nome":"JADILSON MERCENA DE FARIAS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202456","nome":"JEAN CARLOS GOMES CORREIA SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"207170","nome":"JEVERSON JOSE VIEIRA DOS SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"486505","nome":"JOSE GILVAN DOS SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"482217","nome":"JOSE MOURA ALVES","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"201891","nome":"KAIQUE ALENCAR FEITOSA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"209414","nome":"LEONARDO SILVA SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"206415","nome":"MARCUS TULIS MENDES RIOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202797","nome":"MATEUS BATISTA SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"806889","nome":"MATHEUS MENEZES DE OLIVEIRA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"524909","nome":"MAXWELL SANTOS MARINHO REIS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"3208680","nome":"MICHEL CRUZ OLIVEIRA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202187","nome":"MICHEL SANTOS DANTAS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"203186","nome":"THIAGO SANTANA DE JESUS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"203392","nome":"TONY ITALO DOS SANTOS CRUZ","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"205727","nome":"VANISON ALVES DOS SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"508121","nome":"WESLLEI FERNANDO DE SOUZA CONCEICAO","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"480179","nome":"WILLIAM OLIVEIRA DA ROCHA","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"781175","nome":"FABIO HENRIQUE DE ALMEIDA SANTOS","turma":"Turma C - Fábio Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Fábio Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"803820","nome":"ADRIANO CARDOSO SANTOS","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"524311","nome":"DACIO SILVA DOS SANTOS","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804981","nome":"DENIS AUGUSTO CORTES ALVES","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204859","nome":"DOUGLAS SALOMAO DO NASCIMENTO SILVA","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805760","nome":"ELIAS MARQUES BOMFIM JUNIOR","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"492820","nome":"ERISON MOREIRA SILVA","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"48033","nome":"EVERTON COSTA CARVALHO","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805389","nome":"FIRMINO DOS SANTOS NETO","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"492832","nome":"FLAVIO MENDES DA SILVA","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"207537","nome":"GILMAR OLIVEIRA DINIZ","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804046","nome":"HUGO NARCISO AMARAL MAIA","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"48199","nome":"JEFFERSON MARQUES MESSIAS","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"209420","nome":"JOEL BATISTA DOS SANTOS NETO","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"209429","nome":"JOSE JOHNNY GARCIA SANTOS SILVA","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"808705","nome":"JOSE LENOIR ALVES DE LIMA JUNIOR","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804303","nome":"LAZARO OLIVEIRA DE SOUZA","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204488","nome":"LEVI SANTOS CONCEICAO","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204247","nome":"LUAN CLEBER SANTOS DIAS","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204911","nome":"MAGNO JOSE SANTOS DE JESUS","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"3207142","nome":"MARCELO OLIVEIRA SANTOS","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"502677","nome":"REINALDO NUNES DE SOUZA","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"3203674","nome":"ROBSON ROSA DOS SANTOS","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"480022","nome":"VAGNER BRUNO DE LIMA RODRIGUES","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"597476","nome":"VALQUIRO DA SILVA NASCIMENTO","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"209719","nome":"VITOR ANTONY ANDRADE RODRIGUES","turma":"Turma D - Eduardo Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Eduardo Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805375","nome":"ANDERSON RODRIGUES FERREIRA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"209422","nome":"ANDREW FELLIPE RAMOS FERREIRA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805317","nome":"CARLOS ALBERTO ANDRADE SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202335","nome":"CARLOS EDUARDO VIEIRA DOS SANTOS PINTO","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"208130","nome":"CLEONES SANTOS DE SOUZA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"486502","nome":"CRISTIANO ALMEIDA SOUZA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805718","nome":"DANIEL MENEZES DA SILVA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805386","nome":"DAVID SANTOS DA SILVA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805026","nome":"DENIS LIMA FERREIRA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"495955","nome":"DIEGO VASCONCELOS SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"201958","nome":"EVERTON FIEL DOS SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"547521","nome":"FABIO DE JESUS SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"804882","nome":"GIVANILDO SANTANA DOS SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"495483","nome":"JOSE ANTONIO ALVES DOS SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"3209508","nome":"LUAN ALVES SILVA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"483114","nome":"LUIZ CARLOS REIS DOS SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"48041","nome":"MARCOS ANTONIO ARAUJO DE OLIVEIRA","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"210277","nome":"MATEUS DE OLIVEIRA SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"207216","nome":"MAURO DA HORA SANTOS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"204641","nome":"NIVALDO FERREIRA DA CRUZ NETO","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"548677","nome":"PAULO HERCULANO BORGES DOS REIS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"467654","nome":"RAY ROBSON SILVA DE JESUS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO II","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"210319","nome":"SIDNEY ROBERTO SOUZA CRUZ","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO I","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"508105","nome":"SIMEAO TENORIO DA FONSECA NETO","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"524327","nome":"VALTER JOSE DOS SANTOS JUNIOR","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"LIDER TEC PROD MINERAL","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"202858","nome":"VANDERLAN VIEIRA PAIXAO","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""},{"gerencia":"Gerência de Operação Mina","matricula":"805763","nome":"WELTON SANTOS REIS","turma":"Turma E - Allan Santos","centroCusto":"101214","funcao":"OP MINA SUBSOLO III","responsavel":"Allan Santos","situacao":"ativo","dataSituacao":""}];
+
+// ── Estado Global ──────────────────────────────────────
+let allPedidos    = [];
+let allFuncionarios = JSON.parse(JSON.stringify(FUNC_DB_INICIAL));
+let allEstoque    = [];
+let allEntregas   = [];
+let pedFilter     = 'todos';
+let funcFilter    = 'todos';
+let estFilter     = 'todos';
+let pendingForm1Data = null;
+let chartTurma = null, chartCC = null, chartStatus = null;
+
+// ── Init ──────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const now = new Date();
+  document.getElementById('dash-date').textContent =
+    now.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  initRelFiltros();
+  carregarTudo();
+  initFileInputs();
+});
+
+async function carregarTudo() {
+  await Promise.all([carregarPedidos(), carregarEntregas(), carregarEstoque(), sincFuncionarios()]);
+  atualizarDashboard();
+  atualizarBadges();
+}
+
+// ── Navegação ─────────────────────────────────────────
+function nav(page, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pg-'+page).classList.add('active');
+  document.querySelectorAll('.sb-item').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  if(page==='pedidos')     renderPedidos();
+  if(page==='espera')      renderEspera();
+  if(page==='estoque')     renderEstoque();
+  if(page==='funcionarios') renderFuncionarios();
+}
+
+// ── Firebase: Pedidos ─────────────────────────────────
+async function carregarPedidos() {
+  try {
+    const snap = await db.collection('pedidos').orderBy('dataSolicitacao','desc').get();
+    allPedidos = snap.docs.map(d=>({id:d.id,...d.data()}));
+  } catch(e) { console.warn('Firebase não configurado, usando dados locais'); }
+}
+
+async function carregarEntregas() {
+  try {
+    const snap = await db.collection('entregas').get();
+    allEntregas = snap.docs.map(d=>({id:d.id,...d.data()}));
+  } catch(e) {}
+}
+
+async function carregarEstoque() {
+  try {
+    const snap = await db.collection('estoque').get();
+    allEstoque = snap.docs.map(d=>({id:d.id,...d.data()}));
+  } catch(e) {}
+}
+
+async function sincFuncionarios() {
+  try {
+    const snap = await db.collection('funcionarios').get();
+    if (!snap.empty) allFuncionarios = snap.docs.map(d=>({id:d.id,...d.data()}));
+    else {
+      // Seed initial data
+      const batch = db.batch();
+      FUNC_DB_INICIAL.forEach(f => {
+        const ref = db.collection('funcionarios').doc(f.matricula);
+        batch.set(ref, f, {merge:true});
+      });
+      await batch.commit();
+    }
+  } catch(e) {}
+}
+
+// ── PEDIDOS ───────────────────────────────────────────
+function filtrarPed(f, btn) {
+  pedFilter = f;
+  document.querySelectorAll('#pg-pedidos .ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPedidos();
+}
+
+function renderPedidos() {
+  const q = document.getElementById('search-ped').value.toLowerCase();
+  const rows = allPedidos.filter(p => {
+    const mf = pedFilter==='todos' || p.status===pedFilter;
+    const ms = !q || p.nome.toLowerCase().includes(q) || String(p.matricula).includes(q);
+    return mf && ms;
+  });
+  const empty = document.getElementById('ped-empty');
+  empty.style.display = rows.length?'none':'block';
+  const slbl = {pendente:'Pendente',aprovado:'Aprovado',entregue:'Entregue',lista_espera:'Lista de Espera'};
+  document.getElementById('tb-ped').innerHTML = rows.map(p => {
+    const dt = p.dataSolicitacao?.toDate ? p.dataSolicitacao.toDate() : new Date(p.dataSolicitacao||Date.now());
+    const itens = Array.isArray(p.itens) ? p.itens.map(i=>i.nome||i).join(', ') : (p.item||'—');
+    return `<tr>
+      <td><div class="td-bold">${p.nome||'—'}</div><div class="td-muted">Mat. ${p.matricula||'—'}</div></td>
+      <td>${p.turma||'—'}</td>
+      <td>${p.centroCusto||p.cc||'—'}</td>
+      <td style="max-width:180px;white-space:normal;font-size:.78rem">${itens}</td>
+      <td>${fmtDate(dt)}</td>
+      <td><span class="badge badge-${p.status||'pendente'}">${slbl[p.status]||p.status||'Pendente'}</span></td>
+      <td>
+        ${p.status==='pendente'||p.status==='aprovado'?`<button class="btn btn-primary btn-sm" onclick="abrirProcessar('${p.id}')">⚡ Processar</button>`:''}
+        ${p.status==='entregue'?`<button class="btn btn-ghost btn-sm" onclick="gerarFichaById('${p.id}')">🖨 Ficha</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── ESPERA ────────────────────────────────────────────
+function renderEspera() {
+  const rows = allPedidos.filter(p=>p.status==='lista_espera')
+    .sort((a,b)=>(a.dataSolicitacao?.seconds||0)-(b.dataSolicitacao?.seconds||0));
+  document.getElementById('esp-empty').style.display = rows.length?'none':'block';
+  document.getElementById('tb-esp').innerHTML = rows.map(p => {
+    const dt = p.dataSolicitacao?.toDate ? p.dataSolicitacao.toDate() : new Date();
+    const dias = Math.floor((Date.now()-dt.getTime())/86400000);
+    const itens = Array.isArray(p.itens)?p.itens.map(i=>i.nome).join(', '):(p.item||'—');
+    return `<tr>
+      <td><div class="td-bold">${p.nome}</div><div class="td-muted">Mat. ${p.matricula}</div></td>
+      <td>${p.turma||'—'}</td><td>${p.centroCusto||p.cc||'—'}</td>
+      <td style="font-size:.78rem">${itens}</td>
+      <td style="color:${dias>7?'var(--red)':'var(--orange)'};font-weight:600">${dias} dia(s)</td>
+      <td><button class="btn btn-primary btn-sm" onclick="abrirProcessar('${p.id}')">⚡ Processar</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── PROCESSAR PEDIDO ──────────────────────────────────
+async function abrirProcessar(pedId) {
+  const p = allPedidos.find(x=>x.id===pedId);
+  if (!p) return;
+
+  let ultimaEntrega = allEntregas
+    .filter(e=>e.matricula===p.matricula)
+    .sort((a,b)=>(b.dataEntrega?.seconds||0)-(a.dataEntrega?.seconds||0))[0];
+
+  const est = allEstoque.find(e=>e.descricao===p.item||e.item===p.item) || {quantFisico:0,quantArmazem:0};
+  const totEst = (est.quantFisico||est.qtdEstoque||0)+(est.quantArmazem||0);
+  const itensHtml = Array.isArray(p.itens)
+    ? `<ul style="padding-left:1.2rem;font-size:.82rem">${p.itens.map(i=>`<li>${i.nome} — ${i.tamanho} (${i.motivo||'—'})</li>`).join('')}</ul>`
+    : `<p style="font-size:.85rem">${p.item||'—'} — ${p.tamanho||''}</p>`;
+
+  document.getElementById('modal-proc-body').innerHTML = `
+    <div class="info-grid">
+      <div class="info-box"><div class="info-box-label">Funcionário</div><div class="info-box-val">${p.nome}</div></div>
+      <div class="info-box"><div class="info-box-label">Matrícula</div><div class="info-box-val">${p.matricula}</div></div>
+      <div class="info-box"><div class="info-box-label">Turma</div><div class="info-box-val">${p.turma||'—'}</div></div>
+      <div class="info-box"><div class="info-box-label">Centro de Custo</div><div class="info-box-val">${p.centroCusto||p.cc||'—'}</div></div>
+    </div>
+    <div style="background:var(--bg);border-radius:8px;padding:12px;margin-bottom:1rem">
+      <div style="font-size:.65rem;text-transform:uppercase;font-weight:700;color:var(--muted);letter-spacing:.5px;margin-bottom:6px">Itens Solicitados</div>
+      ${itensHtml}
+    </div>
+    ${ultimaEntrega?`<div class="alert alert-info"><span class="alert-ico">📋</span><div>Última entrega: <strong>${ultimaEntrega.item||'—'}</strong> em ${fmtDate(ultimaEntrega.dataEntrega?.toDate?.()|| new Date())}</div></div>`:''}
+    ${totEst===0?`<div class="alert alert-warning"><span class="alert-ico">⚠️</span><div>Sem estoque disponível. Pedido será mantido em lista de espera.</div></div>`:`
+    <div style="margin-bottom:.9rem">
+      <div style="font-size:.65rem;text-transform:uppercase;font-weight:700;color:var(--muted);letter-spacing:.5px;margin-bottom:8px">Origem</div>
+      <div class="src-opts">
+        <div class="src-opt ${(est.quantFisico||est.qtdEstoque||0)>0?'sel':''}" id="src-fis" onclick="selSrc('fis')" style="${(est.quantFisico||est.qtdEstoque||0)===0?'opacity:.4;pointer-events:none':''}">
+          <div class="s-ico">🏭</div><div class="s-lbl">Estoque Físico</div>
+          <div class="s-qty">${est.quantFisico||est.qtdEstoque||0} un.</div>
+        </div>
+        <div class="src-opt ${(est.quantFisico||est.qtdEstoque||0)===0&&(est.quantArmazem||0)>0?'sel':''}" id="src-arm" onclick="selSrc('arm')" style="${(est.quantArmazem||0)===0?'opacity:.4;pointer-events:none':''}">
+          <div class="s-ico">🏬</div><div class="s-lbl">Armazém</div>
+          <div class="s-qty">${est.quantArmazem||0} un.</div>
+        </div>
+      </div>
+    </div>`}
+    <div class="form-group">
+      <label class="form-label">Responsável pela Entrega *</label>
+      <input type="text" class="form-control" id="resp-ent" placeholder="Nome de quem está entregando">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <textarea class="form-control" id="obs-ent" rows="2" placeholder="Observações opcionais..."></textarea>
+    </div>`;
+
+  document.getElementById('modal-proc-footer').innerHTML = `
+    <button class="btn btn-ghost" onclick="fecharModal('modal-processar')">Cancelar</button>
+    ${totEst===0
+      ? `<button class="btn btn-orange" onclick="moverEspera('${pedId}')">⏳ Manter em Espera</button>`
+      : `<button class="btn btn-success" onclick="confirmarEntrega('${pedId}')">✅ Confirmar Entrega</button>`
+    }`;
+  document.getElementById('modal-processar').classList.add('show');
+}
+
+function selSrc(s) {
+  document.getElementById('src-fis').classList.toggle('sel',s==='fis');
+  document.getElementById('src-arm').classList.toggle('sel',s==='arm');
+}
+function getSrc() {
+  const f = document.getElementById('src-fis');
+  return f&&f.classList.contains('sel')?'fisico':'armazem';
+}
+
+async function confirmarEntrega(pedId) {
+  const resp = document.getElementById('resp-ent').value.trim();
+  if (!resp) { toast('Informe o responsável','error'); return; }
+  const p = allPedidos.find(x=>x.id===pedId);
+  if (!p) return;
+  try {
+    const now = firebase.firestore.Timestamp.now();
+    const mes = new Date().toISOString().slice(0,7);
+    const batch = db.batch();
+    batch.update(db.collection('pedidos').doc(pedId),{status:'entregue',dataEntrega:now,responsavel:resp,origem:getSrc()});
+    const eRef = db.collection('entregas').doc();
+    batch.set(eRef,{
+      pedidoId:pedId,matricula:p.matricula,nome:p.nome,
+      turma:p.turma||'',centroCusto:p.centroCusto||p.cc||'',
+      item:Array.isArray(p.itens)?p.itens.map(i=>i.nome).join(', '):(p.item||''),
+      dataEntrega:now,responsavel:resp,mes,
+      obs:document.getElementById('obs-ent').value||''
+    });
+    await batch.commit();
+    fecharModal('modal-processar');
+    await carregarTudo();
+    toast('Entrega confirmada!','success');
+    setTimeout(()=>{ if(confirm('Imprimir ficha de entrega?')) gerarFichaById(pedId); },400);
+  } catch(e){ toast('Erro ao confirmar','error'); console.error(e); }
+}
+
+async function moverEspera(pedId) {
+  try {
+    await db.collection('pedidos').doc(pedId).update({status:'lista_espera'});
+    fecharModal('modal-processar');
+    await carregarTudo();
+    toast('Movido para lista de espera','warning');
+  } catch(e){ toast('Erro','error'); }
+}
+
+// ── IMPORTAR FORM1 ────────────────────────────────────
+function abrirImportForm1() {
+  document.getElementById('form1-json').value = '';
+  document.getElementById('form1-preview').innerHTML = '';
+  document.getElementById('btn-confirm-form1').style.display = 'none';
+  pendingForm1Data = null;
+  document.getElementById('modal-form1').classList.add('show');
+}
+
+document.getElementById('fi-form1').addEventListener('change', function(e) {
+  if (!e.target.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('form1-json').value = ev.target.result;
+    parseForm1Preview();
+  };
+  reader.readAsText(e.target.files[0]);
+});
+
+function parseForm1Preview() {
+  const raw = document.getElementById('form1-json').value.trim();
+  if (!raw) { toast('Cole o JSON primeiro','error'); return; }
+  try {
+    const data = JSON.parse(raw);
+    const arr = Array.isArray(data) ? data : [data];
+    pendingForm1Data = arr;
+    document.getElementById('form1-preview').innerHTML = `
+      <div class="alert alert-success" style="margin-top:.75rem"><span>✅</span><div>${arr.length} pedido(s) encontrado(s) para importar:</div></div>
+      ${arr.map(p=>`
+        <div style="background:var(--bg);border-radius:8px;padding:10px;margin-bottom:.5rem;font-size:.82rem">
+          <strong>${p.nome||p.solicitante||'—'}</strong> (Mat. ${p.matricula||'—'}) · Turma: ${p.turma||'—'}<br>
+          Itens: ${Array.isArray(p.itens)?p.itens.map(i=>i.nome||i).join(', '):(p.item||'—')}
+        </div>`).join('')}`;
+    document.getElementById('btn-confirm-form1').style.display = 'inline-flex';
+  } catch(e) {
+    document.getElementById('form1-preview').innerHTML = `<div class="alert alert-danger"><span>❌</span><div>JSON inválido: ${e.message}</div></div>`;
+    document.getElementById('btn-confirm-form1').style.display = 'none';
+  }
+}
+
+async function confirmarImportForm1() {
+  if (!pendingForm1Data) return;
+  try {
+    const batch = db.batch();
+    pendingForm1Data.forEach(p => {
+      const ref = db.collection('pedidos').doc();
+      batch.set(ref, {
+        ...p,
+        nome: p.nome||p.nomeColab||p.solicitante||'',
+        matricula: String(p.matricula||p.matriculaColab||''),
+        turma: p.turma||'',
+        centroCusto: String(p.cc||p.centroCusto||''),
+        status: 'pendente',
+        dataSolicitacao: firebase.firestore.FieldValue.serverTimestamp(),
+        origem: 'form1'
+      });
+    });
+    await batch.commit();
+    fecharModal('modal-form1');
+    await carregarTudo();
+    toast(`${pendingForm1Data.length} pedido(s) importado(s)!`,'success');
+  } catch(e) { toast('Erro ao importar','error'); console.error(e); }
+}
+
+// ── FUNCIONÁRIOS ──────────────────────────────────────
+function filtrarFunc(f, btn) {
+  funcFilter = f;
+  document.querySelectorAll('#pg-funcionarios .ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderFuncionarios();
+}
+
+function renderFuncionarios() {
+  const q = (document.getElementById('search-func').value||'').toLowerCase();
+  let rows = allFuncionarios;
+  if (funcFilter !== 'todos') rows = rows.filter(f=>f.situacao===funcFilter);
+  if (q) rows = rows.filter(f=>f.nome.toLowerCase().includes(q)||String(f.matricula).includes(q));
+  document.getElementById('func-empty').style.display = rows.length?'none':'block';
+  document.getElementById('cnt-todos').textContent = `(${allFuncionarios.length})`;
+  document.getElementById('tb-func').innerHTML = rows.map((f,i)=>`<tr>
+    <td><div class="td-bold">${f.nome}</div><div class="td-muted">${f.gerencia||'—'}</div></td>
+    <td>${f.matricula}</td>
+    <td>${f.turma||'—'}</td>
+    <td>${f.centroCusto||'—'}</td>
+    <td style="font-size:.78rem">${f.funcao||'—'}</td>
+    <td style="font-size:.78rem">${f.responsavel||'—'}</td>
+    <td>
+      <span class="badge badge-${f.situacao||'ativo'}">${(f.situacao||'ativo').charAt(0).toUpperCase()+(f.situacao||'ativo').slice(1)}</span>
+      ${f.dataSituacao?`<div style="font-size:.65rem;color:var(--muted);margin-top:2px">${fmtDate(f.dataSituacao)}</div>`:''}
+    </td>
+    <td>
+      <button class="btn btn-ghost btn-sm" onclick="abrirModalFunc('${f.matricula}')">✏️ Editar</button>
+    </td>
+  </tr>`).join('');
+}
+
+function abrirImportFunc() {
+  document.getElementById('import-func-area').style.display='block';
+  document.getElementById('preview-func-area').innerHTML='';
+  document.getElementById('import-func-area').scrollIntoView({behavior:'smooth'});
+}
+
+function toggleDataSit() {
+  const s = document.getElementById('ef-sit').value;
+  document.getElementById('ef-data-wrap').style.display = s!=='ativo'?'block':'none';
+}
+
+function abrirModalFunc(matricula) {
+  if (matricula) {
+    const f = allFuncionarios.find(x=>x.matricula===matricula);
+    if (!f) return;
+    document.getElementById('ef-id').value = matricula;
+    document.getElementById('ef-mat').value = f.matricula;
+    document.getElementById('ef-nome').value = f.nome;
+    document.getElementById('ef-gerencia').value = f.gerencia||'';
+    document.getElementById('ef-cc').value = f.centroCusto||'';
+    document.getElementById('ef-funcao').value = f.funcao||'';
+    document.getElementById('ef-resp').value = f.responsavel||'';
+    document.getElementById('ef-sit').value = f.situacao||'ativo';
+    document.getElementById('ef-data-sit').value = f.dataSituacao||'';
+    const turmaOpts = [...document.getElementById('ef-turma').options].map(o=>o.value);
+    if (turmaOpts.includes(f.turma||'')) {
+      document.getElementById('ef-turma').value = f.turma||'';
+      document.getElementById('ef-turma-outro').style.display='none';
+    } else {
+      document.getElementById('ef-turma').value = 'outro';
+      document.getElementById('ef-turma-outro').style.display='block';
+      document.getElementById('ef-turma-outro').value = f.turma||'';
+    }
+    document.getElementById('modal-func-title').textContent = 'Editar Funcionário';
+  } else {
+    document.getElementById('ef-id').value = '';
+    document.getElementById('ef-mat').value = '';
+    document.getElementById('ef-nome').value = '';
+    document.getElementById('ef-gerencia').value = 'Gerência de Operação Mina';
+    document.getElementById('ef-cc').value = '101214';
+    document.getElementById('ef-funcao').value = '';
+    document.getElementById('ef-resp').value = '';
+    document.getElementById('ef-sit').value = 'ativo';
+    document.getElementById('ef-data-sit').value = '';
+    document.getElementById('ef-turma').value = '';
+    document.getElementById('ef-turma-outro').style.display='none';
+    document.getElementById('modal-func-title').textContent = 'Novo Funcionário';
+  }
+  toggleDataSit();
+  document.getElementById('modal-func').classList.add('show');
+}
+
+document.getElementById('ef-turma').addEventListener('change', function() {
+  document.getElementById('ef-turma-outro').style.display = this.value==='outro'?'block':'none';
+});
+
+async function salvarFuncionario() {
+  const mat = document.getElementById('ef-mat').value.trim();
+  const nome = document.getElementById('ef-nome').value.trim();
+  if (!mat||!nome) { toast('Matrícula e nome são obrigatórios','error'); return; }
+  const turmaVal = document.getElementById('ef-turma').value;
+  const turma = turmaVal==='outro' ? document.getElementById('ef-turma-outro').value.trim() : turmaVal;
+  const data = {
+    matricula: mat, nome, gerencia: document.getElementById('ef-gerencia').value.trim(),
+    turma, centroCusto: document.getElementById('ef-cc').value.trim(),
+    funcao: document.getElementById('ef-funcao').value.trim(),
+    responsavel: document.getElementById('ef-resp').value.trim(),
+    situacao: document.getElementById('ef-sit').value,
+    dataSituacao: document.getElementById('ef-data-sit').value
+  };
+  try {
+    await db.collection('funcionarios').doc(mat).set(data, {merge:true});
+    const idx = allFuncionarios.findIndex(f=>f.matricula===mat);
+    if (idx>=0) allFuncionarios[idx]={...allFuncionarios[idx],...data};
+    else allFuncionarios.push(data);
+    fecharModal('modal-func');
+    renderFuncionarios();
+    atualizarDashboard();
+    toast('Funcionário salvo!','success');
+  } catch(e) {
+    // Fallback local
+    const idx = allFuncionarios.findIndex(f=>f.matricula===mat);
+    if (idx>=0) allFuncionarios[idx]={...allFuncionarios[idx],...data};
+    else allFuncionarios.push(data);
+    fecharModal('modal-func');
+    renderFuncionarios();
+    toast('Salvo localmente (Firebase não configurado)','warning');
+  }
+}
+
+// ── IMPORT FUNCIONÁRIOS ───────────────────────────────
+function initFileInputs() {
+  // Import func
+  document.getElementById('fi-func').addEventListener('change', function(e) {
+    if (!e.target.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const wb = XLSX.read(ev.target.result,{type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet,{defval:''});
+      mostrarPreviewFunc(rows);
+    };
+    reader.readAsArrayBuffer(e.target.files[0]);
+  });
+  // Import estoque
+  document.getElementById('fi-est').addEventListener('change', function(e) {
+    if (!e.target.files[0]) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const wb = XLSX.read(ev.target.result,{type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet,{defval:''});
+      mostrarPreviewEst(rows);
+    };
+    reader.readAsArrayBuffer(e.target.files[0]);
+  });
+  // Drag & drop
+  ['drop-func','drop-est'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drag');});
+    el.addEventListener('dragleave',()=>el.classList.remove('drag'));
+    el.addEventListener('drop',e=>{
+      e.preventDefault();el.classList.remove('drag');
+      const file = e.dataTransfer.files[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const wb=XLSX.read(ev.target.result,{type:'array'});
+        const sheet=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(sheet,{defval:''});
+        if(id==='drop-func') mostrarPreviewFunc(rows);
+        else mostrarPreviewEst(rows);
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  });
+}
+
+function mostrarPreviewFunc(rows) {
+  if (!rows.length) { toast('Planilha vazia','error'); return; }
+  const norm = rows.map(r => {
+    const k = Object.keys(r);
+    const get = (...terms) => {
+      const key = k.find(x=>terms.some(t=>x.toLowerCase().includes(t.toLowerCase())))||k[0];
+      return r[key]||'';
+    };
+    return {
+      gerencia:    String(get('gerência','gerencia')||'Gerência de Operação Mina'),
+      matricula:   String(get('matricula','mat','código')),
+      nome:        String(get('nome','colaborador','funcionário')).toUpperCase(),
+      turma:       String(get('turma','grupo')),
+      centroCusto: String(get('centro','custo','cc')),
+      funcao:      String(get('função','funcao','cargo')).toUpperCase(),
+      responsavel: String(get('responsável','responsavel','supervisor')),
+      situacao:    'ativo', dataSituacao: ''
+    };
+  }).filter(r=>r.matricula && r.nome);
+
+  document.getElementById('preview-func-area').innerHTML = `
+    <div class="alert alert-info" style="margin-top:.75rem"><span>ℹ️</span><div>${norm.length} funcionário(s) encontrados</div></div>
+    <div class="tbl-wrap" style="max-height:180px;overflow-y:auto;margin-bottom:.75rem">
+      <table><thead><tr><th>Nome</th><th>Matrícula</th><th>Turma</th><th>C.Custo</th><th>Função</th></tr></thead>
+      <tbody>${norm.slice(0,8).map(r=>`<tr><td>${r.nome}</td><td>${r.matricula}</td><td>${r.turma}</td><td>${r.centroCusto}</td><td style="font-size:.72rem">${r.funcao}</td></tr>`).join('')}</tbody></table>
+    </div>
+    <button class="btn btn-success" id="btn-confirm-func">✅ Importar ${norm.length} Funcionários</button>`;
+  document.getElementById('btn-confirm-func').onclick = async () => {
+    try {
+      const batch = db.batch();
+      norm.forEach(f=>batch.set(db.collection('funcionarios').doc(f.matricula),f,{merge:true}));
+      await batch.commit();
+      allFuncionarios = norm;
+      renderFuncionarios(); atualizarDashboard();
+      document.getElementById('preview-func-area').innerHTML=`<div class="alert alert-success"><span>✅</span><div>${norm.length} funcionários importados!</div></div>`;
+      toast(`${norm.length} funcionários importados`,'success');
+    } catch(e) {
+      allFuncionarios = norm;
+      renderFuncionarios();
+      toast('Importado localmente','warning');
+    }
+  };
+}
+
+// ── ESTOQUE ───────────────────────────────────────────
+function abrirImportEst() {
+  document.getElementById('import-est-area').style.display='block';
+  document.getElementById('preview-est-area').innerHTML='';
+  document.getElementById('import-est-area').scrollIntoView({behavior:'smooth'});
+}
+
+function filtrarEst(f, btn) {
+  estFilter = f;
+  document.querySelectorAll('#pg-estoque .ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEstoque();
+}
+
+function renderEstoque() {
+  const q = (document.getElementById('search-est').value||'').toLowerCase();
+  let rows = allEstoque;
+  if (estFilter==='critico') rows = rows.filter(e=>(e.qtdEstoque||e.quantFisico||0)+(e.quantArmazem||0)<=(e.qtdMinima||e.quantMinima||5));
+  if (estFilter==='ok') rows = rows.filter(e=>(e.qtdEstoque||e.quantFisico||0)+(e.quantArmazem||0)>(e.qtdMinima||e.quantMinima||5));
+  if (q) rows = rows.filter(e=>(e.descricao||e.item||'').toLowerCase().includes(q)||(e.codigo||'').toLowerCase().includes(q));
+  document.getElementById('est-empty').style.display = rows.length?'none':'block';
+  document.getElementById('tb-est').innerHTML = rows.map(e => {
+    const total = (e.qtdEstoque||e.quantFisico||0)+(e.quantArmazem||0);
+    const min = e.qtdMinima||e.quantMinima||5;
+    const crit = total <= min;
+    const stClass = total===0?'critico':crit?'alerta':'ok';
+    const stLabel = total===0?'Zerado':crit?'Crítico':'OK';
+    const val = parseFloat(e.valorUnitario||e.valor||0);
+    return `<tr>
+      <td>${e.codigo||'—'}</td>
+      <td class="td-bold">${e.descricao||e.item||'—'}</td>
+      <td>${e.categoria||'—'}</td>
+      <td>${e.tamanho||'—'}</td>
+      <td style="font-weight:700;color:${crit?'var(--red)':'inherit'}">${e.qtdEstoque||e.quantFisico||0}</td>
+      <td>${min}</td>
+      <td>${e.quantArmazem||0}</td>
+      <td>${val>0?'R$ '+val.toFixed(2).replace('.',','):'—'}</td>
+      <td>${e.ca||e.numeroCa||'—'}</td>
+      <td><span class="badge badge-${stClass}">${stLabel}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="abrirModalItem('${e.id}')">✏️</button>
+        <button class="btn btn-ghost btn-sm" onclick="addQtdItem('${e.id}')">+</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function abrirModalItem(id) {
+  if (id) {
+    const e = allEstoque.find(x=>x.id===id);
+    if (!e) return;
+    document.getElementById('ei-id').value = id;
+    document.getElementById('ei-cod').value = e.codigo||'';
+    document.getElementById('ei-desc').value = e.descricao||e.item||'';
+    document.getElementById('ei-cat').value = e.categoria||'Uniforme';
+    document.getElementById('ei-tam').value = e.tamanho||'';
+    document.getElementById('ei-qtd').value = e.qtdEstoque||e.quantFisico||0;
+    document.getElementById('ei-arm').value = e.quantArmazem||0;
+    document.getElementById('ei-min').value = e.qtdMinima||e.quantMinima||5;
+    document.getElementById('ei-val').value = e.valorUnitario||e.valor||0;
+    document.getElementById('ei-ca').value = e.ca||e.numeroCa||'';
+    document.getElementById('ei-loc').value = e.localizacao||'';
+    document.getElementById('modal-item-title').textContent = 'Editar Item';
+  } else {
+    ['ei-id','ei-cod','ei-desc','ei-tam','ei-ca','ei-loc'].forEach(f=>document.getElementById(f).value='');
+    document.getElementById('ei-cat').value = 'Uniforme';
+    document.getElementById('ei-qtd').value = 0;
+    document.getElementById('ei-arm').value = 0;
+    document.getElementById('ei-min').value = 5;
+    document.getElementById('ei-val').value = 0;
+    document.getElementById('modal-item-title').textContent = 'Novo Item';
+  }
+  document.getElementById('modal-item').classList.add('show');
+}
+
+async function salvarItem() {
+  const id = document.getElementById('ei-id').value;
+  const desc = document.getElementById('ei-desc').value.trim();
+  if (!desc) { toast('Informe a descrição','error'); return; }
+  const data = {
+    codigo: document.getElementById('ei-cod').value.trim(),
+    descricao: desc, item: desc,
+    categoria: document.getElementById('ei-cat').value,
+    tamanho: document.getElementById('ei-tam').value.trim(),
+    qtdEstoque: parseInt(document.getElementById('ei-qtd').value)||0,
+    quantFisico: parseInt(document.getElementById('ei-qtd').value)||0,
+    quantArmazem: parseInt(document.getElementById('ei-arm').value)||0,
+    qtdMinima: parseInt(document.getElementById('ei-min').value)||5,
+    quantMinima: parseInt(document.getElementById('ei-min').value)||5,
+    valorUnitario: parseFloat(document.getElementById('ei-val').value)||0,
+    ca: document.getElementById('ei-ca').value.trim(),
+    localizacao: document.getElementById('ei-loc').value.trim()
+  };
+  try {
+    if (id) {
+      await db.collection('estoque').doc(id).update(data);
+      const idx = allEstoque.findIndex(x=>x.id===id);
+      if(idx>=0) allEstoque[idx]={...allEstoque[idx],...data};
+    } else {
+      const ref = await db.collection('estoque').add(data);
+      allEstoque.push({id:ref.id,...data});
+    }
+  } catch(e) {
+    if (id) {
+      const idx = allEstoque.findIndex(x=>x.id===id);
+      if(idx>=0) allEstoque[idx]={...allEstoque[idx],...data};
+    } else {
+      allEstoque.push({id:'local_'+Date.now(),...data});
+    }
+  }
+  fecharModal('modal-item');
+  renderEstoque(); atualizarDashboard();
+  toast('Item salvo!','success');
+  await processarListaEspera(desc, data.tamanho);
+}
+
+async function addQtdItem(id) {
+  const e = allEstoque.find(x=>x.id===id);
+  if (!e) return;
+  const v = prompt(`Adicionar estoque para "${e.descricao||e.item}":\nFormato: FISICO,ARMAZEM (ex: 5,0)`);
+  if (!v) return;
+  const [f,a] = v.split(',').map(Number);
+  if (isNaN(f)||isNaN(a)) { toast('Formato inválido','error'); return; }
+  try {
+    await db.collection('estoque').doc(id).update({
+      qtdEstoque:(e.qtdEstoque||e.quantFisico||0)+f, quantFisico:(e.qtdEstoque||e.quantFisico||0)+f,
+      quantArmazem:(e.quantArmazem||0)+a
+    });
+    const idx = allEstoque.findIndex(x=>x.id===id);
+    if(idx>=0){ allEstoque[idx].qtdEstoque=(allEstoque[idx].qtdEstoque||allEstoque[idx].quantFisico||0)+f; allEstoque[idx].quantFisico=allEstoque[idx].qtdEstoque; allEstoque[idx].quantArmazem=(allEstoque[idx].quantArmazem||0)+a; }
+  } catch(e2) {
+    const idx = allEstoque.findIndex(x=>x.id===id);
+    if(idx>=0){ allEstoque[idx].qtdEstoque=(allEstoque[idx].qtdEstoque||0)+f; allEstoque[idx].quantArmazem=(allEstoque[idx].quantArmazem||0)+a; }
+  }
+  renderEstoque(); atualizarDashboard();
+  toast(`+${f} físico, +${a} armazém`,'success');
+  await processarListaEspera(e.descricao||e.item, e.tamanho);
+}
+
+function mostrarPreviewEst(rows) {
+  if (!rows.length) { toast('Planilha vazia','error'); return; }
+  const norm = rows.map(r => {
+    const k = Object.keys(r);
+    const get = (...terms) => {
+      const key = k.find(x=>terms.some(t=>x.toLowerCase().includes(t.toLowerCase())))||k[0];
+      return r[key]||'';
+    };
+    return {
+      codigo:      String(get('código','codigo','cod')),
+      descricao:   String(get('descrição','descricao','item','nome')),
+      item:        String(get('descrição','descricao','item','nome')),
+      categoria:   String(get('categoria','tipo','classe')||'Uniforme'),
+      tamanho:     String(get('tamanho','tam','size')),
+      qtdEstoque:  parseInt(get('qtd estoque','quantidade','estoque','saldo'))||0,
+      quantFisico: parseInt(get('qtd estoque','quantidade','estoque','saldo'))||0,
+      quantArmazem:parseInt(get('armazém','armazem','deposito','depósito'))||0,
+      qtdMinima:   parseInt(get('mínima','minima','min'))||5,
+      quantMinima: parseInt(get('mínima','minima','min'))||5,
+      valorUnitario:parseFloat(String(get('valor','unit','preço','preco')).replace(',','.'))||0,
+      ca:          String(get('ca','cert','aprovação')),
+      localizacao: String(get('local','localizaç','prateleira'))
+    };
+  }).filter(r=>r.descricao);
+
+  document.getElementById('preview-est-area').innerHTML = `
+    <div class="alert alert-info" style="margin-top:.75rem"><span>ℹ️</span><div>${norm.length} itens encontrados</div></div>
+    <div class="tbl-wrap" style="max-height:180px;overflow-y:auto;margin-bottom:.75rem">
+      <table><thead><tr><th>Código</th><th>Descrição</th><th>Categoria</th><th>Tamanho</th><th>Qtd</th><th>Qtd Mín</th><th>Valor</th></tr></thead>
+      <tbody>${norm.slice(0,8).map(r=>`<tr><td>${r.codigo}</td><td>${r.descricao}</td><td>${r.categoria}</td><td>${r.tamanho}</td><td>${r.qtdEstoque}</td><td>${r.qtdMinima}</td><td>${r.valorUnitario>0?'R$ '+r.valorUnitario.toFixed(2):'—'}</td></tr>`).join('')}</tbody></table>
+    </div>
+    <button class="btn btn-success" id="btn-confirm-est">✅ Importar ${norm.length} Itens de Estoque</button>`;
+  document.getElementById('btn-confirm-est').onclick = async () => {
+    try {
+      const batch = db.batch();
+      norm.forEach(n=>{
+        const id = (n.codigo||n.descricao).replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'').toLowerCase()+'_'+(n.tamanho||'');
+        batch.set(db.collection('estoque').doc(id),{...n,id},{ merge:true});
+        n.id=id;
+      });
+      await batch.commit();
+      allEstoque = norm;
+    } catch(e){ allEstoque = norm.map((n,i)=>({...n,id:'local_'+i})); }
+    renderEstoque(); atualizarDashboard();
+    document.getElementById('preview-est-area').innerHTML=`<div class="alert alert-success"><span>✅</span><div>${norm.length} itens importados!</div></div>`;
+    toast(`${norm.length} itens importados`,'success');
+    for(const n of norm) await processarListaEspera(n.descricao,n.tamanho);
+  };
+}
+
+// ── LISTA DE ESPERA — auto-process ────────────────────
+async function processarListaEspera(item, tamanho) {
+  const esp = allPedidos.filter(p=>p.status==='lista_espera'&&(p.item===item||(Array.isArray(p.itens)&&p.itens.some(i=>i.nome===item))))
+    .sort((a,b)=>(a.dataSolicitacao?.seconds||0)-(b.dataSolicitacao?.seconds||0));
+  if (!esp.length) return;
+  const estDoc = allEstoque.find(e=>e.descricao===item||e.item===item);
+  if (!estDoc) return;
+  let qtd = (estDoc.qtdEstoque||estDoc.quantFisico||0)+(estDoc.quantArmazem||0);
+  let processados = 0;
+  for (const p of esp) {
+    if (qtd<=0) break;
+    qtd--;
+    try { await db.collection('pedidos').doc(p.id).update({status:'pendente'}); } catch(e) {}
+    const idx = allPedidos.findIndex(x=>x.id===p.id);
+    if(idx>=0) allPedidos[idx].status='pendente';
+    processados++;
+  }
+  if (processados>0) { atualizarBadges(); toast(`${processados} pedido(s) da lista de espera movidos para Pendente`,'success'); }
+}
+
+// ── DASHBOARD ─────────────────────────────────────────
+function atualizarDashboard() {
+  const ativos = allFuncionarios.filter(f=>f.situacao==='ativo'||!f.situacao).length;
+  const pend = allPedidos.filter(p=>p.status==='pendente'||p.status==='aprovado').length;
+  const baixo = allEstoque.filter(e=>(e.qtdEstoque||e.quantFisico||0)+(e.quantArmazem||0)<=(e.qtdMinima||e.quantMinima||5)).length;
+  const esp = allPedidos.filter(p=>p.status==='lista_espera').length;
+
+  // Custo total entregas
+  let custoEnt = 0;
+  allEntregas.forEach(e => {
+    const item = allEstoque.find(x=>x.descricao===e.item||x.item===e.item);
+    if (item) custoEnt += parseFloat(item.valorUnitario||0);
+  });
+
+  document.getElementById('ds-func').textContent = allFuncionarios.length;
+  document.getElementById('ds-pend').textContent = pend;
+  document.getElementById('ds-est-baixo').textContent = baixo;
+  document.getElementById('ds-custo-ent').textContent = 'R$ '+custoEnt.toFixed(2).replace('.',',');
+  document.getElementById('ds-req').textContent = '0';
+  document.getElementById('ds-req-sub').textContent = '0 pendente(s)';
+  document.getElementById('ds-custo-req').textContent = 'R$ 0,00';
+  document.getElementById('ds-custo-total').textContent = 'R$ '+custoEnt.toFixed(2).replace('.',',');
+
+  // Top CC
+  const byCC = {};
+  allEntregas.forEach(e=>{ const cc=e.centroCusto||'—'; byCC[cc]=(byCC[cc]||0)+1; });
+  const topCC = Object.entries(byCC).sort((a,b)=>b[1]-a[1])[0];
+  document.getElementById('ds-top-cc').textContent = topCC?topCC[0]:'—';
+  document.getElementById('ds-top-cc-sub').textContent = topCC?topCC[1]+' entrega(s)':'sem dados';
+
+  // Últimas entregas
+  const lastDel = allEntregas.slice(-5).reverse();
+  document.getElementById('dash-last-del').innerHTML = lastDel.length
+    ? lastDel.map(e=>`<div class="last-del-item">
+        <div style="flex:1"><div class="last-del-name">${e.nome||'—'}</div><div class="last-del-sub">${e.item||'—'} · ${fmtDate(e.dataEntrega?.toDate?.()|| new Date())}</div></div>
+        <span class="badge badge-entregue">Entregue</span>
+      </div>`).join('')
+    : '<div style="font-size:.8rem;color:var(--muted);text-align:center;padding:.5rem">Nenhuma entrega registrada.</div>';
+
+  buildCharts();
+}
+
+function buildCharts() {
+  // By Turma
+  const byTurma = {};
+  allEntregas.forEach(e=>{
+    const t = e.turma||'Sem Turma';
+    const item = allEstoque.find(x=>x.descricao===e.item||x.item===e.item);
+    byTurma[t]=(byTurma[t]||0)+(item?parseFloat(item.valorUnitario||0):1);
+  });
+  const turmaLabels = Object.keys(byTurma);
+  const turmaData = Object.values(byTurma);
+
+  const noTurma = document.getElementById('no-turma');
+  if (!turmaLabels.length) {
+    noTurma.style.display='block';
+    document.getElementById('chart-turma').style.display='none';
+  } else {
+    noTurma.style.display='none';
+    document.getElementById('chart-turma').style.display='';
+    if (chartTurma) chartTurma.destroy();
+    chartTurma = new Chart(document.getElementById('chart-turma'), {
+      type:'bar',
+      data:{ labels:turmaLabels, datasets:[{label:'Custo (R$)',data:turmaData,backgroundColor:'rgba(139,26,26,.7)',borderRadius:5}] },
+      options:{ responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'R$ '+v.toFixed(0)}}} }
+    });
+  }
+
+  // By CC
+  const byCC = {};
+  allEntregas.forEach(e=>{
+    const c = e.centroCusto||'Sem CC';
+    byCC[c]=(byCC[c]||0)+1;
+  });
+  const ccLabels = Object.keys(byCC);
+  const ccData = Object.values(byCC);
+  const noCC = document.getElementById('no-cc');
+  if (!ccLabels.length) {
+    noCC.style.display='block';
+    document.getElementById('chart-cc').style.display='none';
+  } else {
+    noCC.style.display='none';
+    document.getElementById('chart-cc').style.display='';
+    if (chartCC) chartCC.destroy();
+    chartCC = new Chart(document.getElementById('chart-cc'), {
+      type:'bar',
+      data:{ labels:ccLabels, datasets:[{label:'Qtd',data:ccData,backgroundColor:'rgba(13,110,253,.7)',borderRadius:5}] },
+      options:{ responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}} }
+    });
+  }
+
+  // Status donut
+  const stCounts = {
+    Pendentes: allPedidos.filter(p=>p.status==='pendente').length,
+    Aprovados: allPedidos.filter(p=>p.status==='aprovado').length,
+    Entregues: allPedidos.filter(p=>p.status==='entregue').length,
+  };
+  if (chartStatus) chartStatus.destroy();
+  chartStatus = new Chart(document.getElementById('chart-status'), {
+    type:'doughnut',
+    data:{
+      labels:Object.keys(stCounts),
+      datasets:[{data:Object.values(stCounts),backgroundColor:['#E55B20','#0d6efd','#28a745'],borderWidth:2,borderColor:'#fff'}]
+    },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'top'}} }
+  });
+}
+
+function atualizarBadges() {
+  const pend = allPedidos.filter(p=>p.status==='pendente').length;
+  const esp = allPedidos.filter(p=>p.status==='lista_espera').length;
+  const bp=document.getElementById('badge-pend'), be=document.getElementById('badge-esp');
+  bp.style.display=pend?'inline':'none'; bp.textContent=pend;
+  be.style.display=esp?'inline':'none'; be.textContent=esp;
+}
+
+// ── RELATÓRIOS ────────────────────────────────────────
+function initRelFiltros() {
+  const now = new Date();
+  document.getElementById('rel-mes').value = String(now.getMonth()+1).padStart(2,'0');
+  const sel = document.getElementById('rel-ano');
+  for (let y=now.getFullYear(); y>=now.getFullYear()-3; y--)
+    sel.innerHTML += `<option value="${y}">${y}</option>`;
+}
+
+function abrirRelFicha() {
+  // Show select employee
+  document.getElementById('modal-rel-title').textContent = '📄 Ficha de Entrega de Uniforme';
+  const ativos = allFuncionarios.filter(f=>f.situacao==='ativo'||!f.situacao);
+  document.getElementById('modal-rel-body').innerHTML = `
+    <div class="form-group">
+      <label class="form-label">Selecionar Colaborador</label>
+      <select class="form-control" id="ficha-mat" onchange="previewFicha()">
+        <option value="">Selecione...</option>
+        ${ativos.map(f=>`<option value="${f.matricula}">${f.nome} (${f.matricula})</option>`).join('')}
+      </select>
+    </div>
+    <div id="ficha-preview"></div>`;
+  document.getElementById('modal-rel').classList.add('show');
+}
+
+function previewFicha() {
+  const mat = document.getElementById('ficha-mat').value;
+  if (!mat) return;
+  const func = allFuncionarios.find(f=>f.matricula===mat);
+  const entregas = allEntregas.filter(e=>e.matricula===mat);
+  document.getElementById('ficha-preview').innerHTML = `
+    <div class="divider"></div>
+    <div class="info-grid">
+      <div class="info-box"><div class="info-box-label">Nome</div><div class="info-box-val">${func?.nome||'—'}</div></div>
+      <div class="info-box"><div class="info-box-label">Matrícula</div><div class="info-box-val">${mat}</div></div>
+      <div class="info-box"><div class="info-box-label">Turma</div><div class="info-box-val">${func?.turma||'—'}</div></div>
+      <div class="info-box"><div class="info-box-label">C. Custo</div><div class="info-box-val">${func?.centroCusto||'—'}</div></div>
+    </div>
+    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px;margin-bottom:.5rem">Histórico de Entregas</div>
+    ${entregas.length?`<div class="tbl-wrap"><table><thead><tr><th>Item</th><th>Data</th><th>Responsável</th></tr></thead>
+    <tbody>${entregas.map(e=>`<tr><td>${e.item||'—'}</td><td>${fmtDate(e.dataEntrega?.toDate?.()|| new Date())}</td><td>${e.responsavel||'—'}</td></tr>`).join('')}</tbody></table></div>`
+    :'<div style="font-size:.8rem;color:var(--muted)">Sem entregas registradas</div>'}`;
+}
+
+function abrirRelTurma() {
+  document.getElementById('modal-rel-title').textContent = '📊 Custo por Turma';
+  const byTurma = {};
+  allEntregas.forEach(e => {
+    const t = e.turma||'Sem Turma';
+    const item = allEstoque.find(x=>x.descricao===e.item||x.item===e.item);
+    const v = item?parseFloat(item.valorUnitario||0):0;
+    if (!byTurma[t]) byTurma[t]={count:0,custo:0,cc:e.centroCusto||'—'};
+    byTurma[t].count++;
+    byTurma[t].custo+=v;
+  });
+  const rows = Object.entries(byTurma).sort((a,b)=>b[1].custo-a[1].custo);
+  document.getElementById('modal-rel-body').innerHTML = rows.length
+    ? `<table><thead><tr><th>Turma</th><th>C. Custo</th><th>Qtd Entregas</th><th>Custo Total</th></tr></thead>
+       <tbody>${rows.map(([t,d])=>`<tr><td class="td-bold">${t}</td><td>${d.cc}</td><td>${d.count}</td><td><strong>R$ ${d.custo.toFixed(2).replace('.',',')}</strong></td></tr>`).join('')}</tbody>
+       <tfoot><tr><td colspan="2"><strong>Total</strong></td><td><strong>${rows.reduce((s,x)=>s+x[1].count,0)}</strong></td><td><strong>R$ ${rows.reduce((s,x)=>s+x[1].custo,0).toFixed(2).replace('.',',')}</strong></td></tr></tfoot></table>`
+    : '<div class="empty"><div class="empty-ico">📊</div><div>Sem dados de entregas</div></div>';
+  document.getElementById('modal-rel').classList.add('show');
+}
+
+function abrirRelEstoque() {
+  document.getElementById('modal-rel-title').textContent = '📦 Posição de Estoque';
+  const sorted = [...allEstoque].sort((a,b)=>(a.descricao||'').localeCompare(b.descricao||''));
+  document.getElementById('modal-rel-body').innerHTML = sorted.length
+    ? `<table><thead><tr><th>Código</th><th>Descrição</th><th>Cat.</th><th>Tam.</th><th>Qtd Est.</th><th>Mínimo</th><th>Armazém</th><th>Total</th><th>Status</th></tr></thead>
+       <tbody>${sorted.map(e=>{
+         const tot=(e.qtdEstoque||e.quantFisico||0)+(e.quantArmazem||0);
+         const min=e.qtdMinima||5;
+         const crit=tot<=min;
+         return `<tr style="${tot===0?'background:#fff0f0':crit?'background:#fffbf0':''}">
+           <td>${e.codigo||'—'}</td>
+           <td class="td-bold">${e.descricao||e.item}</td>
+           <td>${e.categoria||'—'}</td>
+           <td>${e.tamanho||'—'}</td>
+           <td style="color:${crit?'var(--red)':'inherit'};font-weight:700">${e.qtdEstoque||e.quantFisico||0}</td>
+           <td>${min}</td>
+           <td>${e.quantArmazem||0}</td>
+           <td style="font-weight:700">${tot}</td>
+           <td><span class="badge badge-${tot===0?'critico':crit?'alerta':'ok'}">${tot===0?'Zerado':crit?'Crítico':'OK'}</span></td>
+         </tr>`;}).join('')}</tbody></table>`
+    : '<div class="empty"><div class="empty-ico">📦</div><div>Sem itens cadastrados</div></div>';
+  document.getElementById('modal-rel').classList.add('show');
+}
+
+function abrirRelRequisicoes() {
+  document.getElementById('modal-rel-title').textContent = '📥 Requisições ao Depósito';
+  document.getElementById('modal-rel-body').innerHTML = `
+    <div class="alert alert-info"><span class="alert-ico">ℹ️</span><div>Módulo de Requisições ao Depósito. Registre saídas de estoque solicitadas ao almoxarifado central.</div></div>
+    <div class="empty"><div class="empty-ico">📥</div><div>Nenhuma requisição registrada</div></div>`;
+  document.getElementById('modal-rel').classList.add('show');
+}
+
+function abrirRelCC() {
+  document.getElementById('modal-rel-title').textContent = '💰 Custo por Centro de Custo';
+  const mes = document.getElementById('rel-mes').value;
+  const ano = document.getElementById('rel-ano').value;
+  const mesFmt = `${ano}-${mes}`;
+  const byCC = {};
+  allEntregas.filter(e=>e.mes===mesFmt||!e.mes).forEach(e => {
+    const cc = e.centroCusto||'Sem CC';
+    const item = allEstoque.find(x=>x.descricao===e.item||x.item===e.item);
+    const v = item?parseFloat(item.valorUnitario||0):0;
+    if (!byCC[cc]) byCC[cc]={count:0,custo:0};
+    byCC[cc].count++; byCC[cc].custo+=v;
+  });
+  const rows = Object.entries(byCC).sort((a,b)=>b[1].custo-a[1].custo);
+  const nomeMes = new Date(`${mesFmt}-01`).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  document.getElementById('modal-rel-body').innerHTML = rows.length
+    ? `<div style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">Período: ${nomeMes.charAt(0).toUpperCase()+nomeMes.slice(1)}</div>
+       <table><thead><tr><th>Centro de Custo</th><th>Qtd Entregas</th><th>Custo Total</th><th>% do Total</th></tr></thead>
+       <tbody>${(()=>{const tot=rows.reduce((s,x)=>s+x[1].custo,0); return rows.map(([cc,d])=>`<tr><td class="td-bold">${cc}</td><td>${d.count}</td><td><strong>R$ ${d.custo.toFixed(2).replace('.',',')}</strong></td><td>${tot>0?((d.custo/tot)*100).toFixed(1)+'%':'—'}</td></tr>`).join('');})()}</tbody>
+       <tfoot><tr><td><strong>Total</strong></td><td><strong>${rows.reduce((s,x)=>s+x[1].count,0)}</strong></td><td><strong>R$ ${rows.reduce((s,x)=>s+x[1].custo,0).toFixed(2).replace('.',',')}</strong></td><td>100%</td></tr></tfoot></table>`
+    : '<div class="empty"><div class="empty-ico">💰</div><div>Sem dados no período selecionado</div></div>';
+  document.getElementById('modal-rel').classList.add('show');
+}
+
+function imprimirRelModal() { window.print(); }
+
+// ── FICHA PDF ─────────────────────────────────────────
+async function gerarFichaById(pedId) {
+  const p = allPedidos.find(x=>x.id===pedId);
+  if (!p) return;
+  const ent = allEntregas.find(e=>e.pedidoId===pedId);
+  gerarFichaPDF({
+    nome:p.nome, matricula:p.matricula, turma:p.turma||'—',
+    centroCusto:p.centroCusto||p.cc||'—', funcao:p.funcao||p.cargo||'—',
+    gerencia:p.gerencia||'Gerência de Operação Mina',
+    itens:Array.isArray(p.itens)?p.itens:[{nome:p.item||'—',tamanho:p.tamanho||'—',motivo:p.motivo||'—'}],
+    dataEntrega:ent?.dataEntrega?.toDate?.()||new Date(),
+    responsavel:p.responsavel||ent?.responsavel||'—',
+    origem:p.origem||'—'
+  });
+}
+
+function gerarFichaPDF(d) {
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF();
+  const W = doc.internal.pageSize.getWidth();
+
+  // Header
+  doc.setFillColor(30,58,58);
+  doc.rect(0,0,W,40,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(13);
+  doc.text('FICHA DE CONTROLE DE ENTREGA DE UNIFORME',W/2,14,{align:'center'});
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(9);
+  doc.text('NR-01 · NR-06 · CLT — Gerência de Operação Mina',W/2,22,{align:'center'});
+  doc.text(`Emissão: ${fmtDate(new Date())}`,W/2,30,{align:'center'});
+
+  doc.setTextColor(0,0,0);
+  doc.setFontSize(10);
+  doc.setFont('helvetica','bold');
+  doc.setTextColor(30,58,58);
+  doc.text('IDENTIFICAÇÃO DO COLABORADOR',14,52);
+  doc.setDrawColor(30,58,58);
+  doc.setLineWidth(.5);
+  doc.line(14,54,196,54);
+
+  doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0); doc.setFontSize(9);
+  doc.text(`Nome:`,14,62); doc.setFont('helvetica','bold'); doc.text(d.nome||'—',32,62);
+  doc.setFont('helvetica','normal');
+  doc.text(`Matrícula:`,14,70); doc.setFont('helvetica','bold'); doc.text(String(d.matricula||'—'),38,70);
+  doc.setFont('helvetica','normal');
+  doc.text(`Turma:`,105,70); doc.text(d.turma||'—',122,70);
+  doc.text(`C. Custo:`,14,78); doc.text(String(d.centroCusto||'—'),36,78);
+  doc.text(`Função:`,105,78); doc.text(d.funcao||'—',122,78);
+  doc.text(`Gerência:`,14,86); doc.text(d.gerencia||'—',36,86);
+
+  // Items table
+  doc.setFont('helvetica','bold'); doc.setTextColor(30,58,58); doc.setFontSize(10);
+  doc.text('ITENS ENTREGUES',14,100);
+  doc.line(14,102,196,100);
+
+  doc.setFillColor(232,238,240);
+  doc.rect(14,104,182,8,'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(50,70,70);
+  doc.text('ITEM / DESCRIÇÃO',18,110);
+  doc.text('TAMANHO',110,110);
+  doc.text('QTD',145,110);
+  doc.text('MOTIVO',160,110);
+
+  let y = 112;
+  (d.itens||[]).forEach((item,i) => {
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0); doc.setFontSize(8);
+    doc.rect(14,y,182,9,'S');
+    doc.text(String(item.nome||item||'—').slice(0,50),18,y+6);
+    doc.text(String(item.tamanho||'—'),110,y+6);
+    doc.text('1',145,y+6);
+    doc.text(String(item.motivo||'—').slice(0,25),160,y+6);
+    y+=9;
+  });
+
+  y+=8;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  doc.text(`Data da Entrega: ${fmtDate(d.dataEntrega||new Date())}`,14,y);
+  doc.text(`Responsável: ${d.responsavel||'—'}`,100,y);
+  doc.text(`Origem: ${d.origem==='fisico'?'Estoque Físico':d.origem==='armazem'?'Armazém':d.origem||'—'}`,14,y+8);
+
+  y+=22;
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(30,58,58);
+  doc.text('ASSINATURAS',14,y);
+  doc.setLineWidth(.4); doc.setDrawColor(80,80,80);
+  doc.line(20,y+28,90,y+28);
+  doc.line(115,y+28,190,y+28);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(60,60,60);
+  doc.text('Assinatura do Colaborador',55,y+34,{align:'center'});
+  doc.text('Responsável pela Entrega',152,y+34,{align:'center'});
+  doc.text(d.nome||'',55,y+40,{align:'center'});
+  doc.text(`Mat.: ${d.matricula||''}`,55,y+46,{align:'center'});
+
+  y+=60;
+  doc.setFillColor(245,245,248);
+  doc.rect(14,y,182,16,'F');
+  doc.setFontSize(7); doc.setTextColor(80,80,80);
+  doc.text('Declaro ter recebido o(s) uniforme(s) acima em perfeito estado e me comprometo a',105,y+6,{align:'center'});
+  doc.text('zelar pelo mesmo, utilizando-o de acordo com as normas de segurança da empresa.',105,y+12,{align:'center'});
+
+  // Footer
+  doc.setFillColor(30,58,58);
+  doc.rect(0,273,W,24,'F');
+  doc.setTextColor(255,255,255); doc.setFontSize(7);
+  doc.text('Sistema de Controle de Uniformes — Mina · NR-01 / NR-06 / CLT',W/2,281,{align:'center'});
+  doc.setTextColor(180,200,200);
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`,W/2,288,{align:'center'});
+
+  doc.save(`Ficha_${d.matricula}_${fmtDateFile(d.dataEntrega)}.pdf`);
+}
+
+// ── MODAL HELPER ─────────────────────────────────────
+function fecharModal(id) { document.getElementById(id).classList.remove('show'); }
+
+// ── UTILS ─────────────────────────────────────────────
+function fmtDate(d) {
+  if(!d) return '—';
+  try { return new Date(d).toLocaleDateString('pt-BR'); } catch(e){ return '—'; }
+}
+function fmtDateFile(d) {
+  if(!d) return 'data';
+  const dt=new Date(d);
+  return `${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}${String(dt.getDate()).padStart(2,'0')}`;
+}
+function toast(msg, type='') {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='toast show '+type;
+  setTimeout(()=>el.classList.remove('show'),3500);
+}
+function moeda(v){ return 'R$ '+(v||0).toFixed(2).replace('.',','); }
+</script>
+</body>
+</html>
